@@ -35,11 +35,14 @@ export default function UserConfigPanel() {
 
   const handleImportCode = async () => {
     if (!importCode.trim()) return
-    const success = await importFromShareCode(importCode.trim().toUpperCase())
+    const success = await importFromShareCode(importCode.trim())
     if (success) {
       setImportStatus('success')
       setImportCode('')
-      setTimeout(() => setImportStatus('idle'), 3000)
+      // Recargar la página para que los cambios se reflejen
+      setTimeout(() => {
+        window.location.reload()
+      }, 2000)
     } else {
       setImportStatus('error')
       setTimeout(() => setImportStatus('idle'), 3000)
@@ -104,22 +107,25 @@ export default function UserConfigPanel() {
         
         <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-3 mb-3">
           <p className="text-[#808080] text-xs">
-            <span className="text-[#FFD700]">⚠️ Nota:</span> Los códigos solo funcionan en el mismo navegador/dispositivo. Para compartir entre dispositivos diferentes, usa el sistema de backup en Configuración → Panel de Administrador.
+            <span className="text-green-400">✓ Funciona en cualquier dispositivo</span> - TVs, celulares, tablets, computadoras
           </p>
         </div>
 
         {shareCode && (
           <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4 mb-3">
-            <p className="text-[#808080] text-xs mb-2">Tu código:</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-2xl font-mono text-[#E50914] font-bold">{shareCode}</code>
-              <button onClick={handleCopyCode} className="p-2 bg-[#2F2F2F] rounded-md hover:bg-[#3F3F3F]">
-                {copied ? <Check className="w-5 h-5 text-green-400"/> : <Copy className="w-5 h-5 text-white"/>}
-              </button>
-            </div>
+            <p className="text-[#808080] text-xs mb-2">Tu código de compartición:</p>
+            <textarea 
+              readOnly 
+              value={shareCode}
+              className="w-full h-32 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-xs font-mono resize-none mb-2"
+              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+            />
+            <button onClick={handleCopyCode} className="w-full py-2 bg-[#2F2F2F] text-white rounded-md hover:bg-[#3F3F3F] flex items-center justify-center gap-2">
+              {copied ? <><Check className="w-4 h-4 text-green-400"/>¡Copiado!</> : <><Copy className="w-4 h-4"/>Copiar Código</>}
+            </button>
           </div>
         )}
-        <button onClick={handleGenerateCode} className="w-full py-2 bg-[#2F2F2F] text-white rounded-md hover:bg-[#3F3F3F] flex items-center justify-center gap-2">
+        <button onClick={handleGenerateCode} className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] flex items-center justify-center gap-2 font-medium">
           <QrCode className="w-4 h-4"/>{shareCode ? 'Generar Nuevo Código' : 'Generar Código'}
         </button>
       </div>
@@ -128,21 +134,23 @@ export default function UserConfigPanel() {
         <h4 className="text-white font-medium mb-3 flex items-center gap-2">
           <Key className="w-4 h-4 text-[#E50914]"/>Importar Programación
         </h4>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={importCode}
-            onChange={(e) => setImportCode(e.target.value.toUpperCase())}
-            placeholder="Código (ej: ABC123)"
-            maxLength={6}
-            className="flex-1 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm font-mono"
-          />
-          <button onClick={handleImportCode} disabled={!importCode.trim()} className="px-4 py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50">
-            Importar
-          </button>
-        </div>
-        {importStatus === 'success' && <p className="text-green-400 text-sm mt-2">¡Importado exitosamente!</p>}
-        {importStatus === 'error' && <p className="text-[#E50914] text-sm mt-2">Código no válido</p>}
+        <p className="text-[#808080] text-xs mb-2">Pega el código que recibiste de otro dispositivo:</p>
+        <textarea
+          value={importCode}
+          onChange={(e) => setImportCode(e.target.value)}
+          placeholder="Pega aquí el código completo..."
+          rows={4}
+          className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-xs font-mono resize-none mb-2"
+        />
+        <button 
+          onClick={handleImportCode} 
+          disabled={!importCode.trim()} 
+          className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+        >
+          Importar Programación
+        </button>
+        {importStatus === 'success' && <p className="text-green-400 text-sm mt-2">✅ ¡Importado exitosamente! Recarga la página para ver los cambios.</p>}
+        {importStatus === 'error' && <p className="text-[#E50914] text-sm mt-2">❌ Código no válido. Verifica que copiaste el código completo.</p>}
       </div>
 
       {isAdmin && (
