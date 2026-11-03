@@ -101,6 +101,13 @@ export default function UserConfigPanel() {
         <h4 className="text-white font-medium mb-3 flex items-center gap-2">
           <Share2 className="w-4 h-4 text-[#E50914]"/>Compartir Programación
         </h4>
+        
+        <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-3 mb-3">
+          <p className="text-[#808080] text-xs">
+            <span className="text-[#FFD700]">⚠️ Nota:</span> Los códigos solo funcionan en el mismo navegador/dispositivo. Para compartir entre dispositivos diferentes, usa el sistema de backup en Configuración → Panel de Administrador.
+          </p>
+        </div>
+
         {shareCode && (
           <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4 mb-3">
             <p className="text-[#808080] text-xs mb-2">Tu código:</p>
