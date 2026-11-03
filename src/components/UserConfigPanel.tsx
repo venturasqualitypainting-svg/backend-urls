@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Lock, Key, Copy, Check, Share2, QrCode, X, Download, Upload } from 'lucide-react'
+import { User, Lock, Key, Copy, Check, Share2, QrCode, X } from 'lucide-react'
 import { useUser } from '../context/UserContext'
 import { useAuth } from '../context/AuthContext'
 
@@ -44,50 +44,6 @@ export default function UserConfigPanel() {
       setImportStatus('error')
       setTimeout(() => setImportStatus('idle'), 3000)
     }
-  }
-
-  const handleExportData = () => {
-    const data = localStorage.getItem('tunetv_content')
-    if (!data) {
-      alert('No hay datos para exportar')
-      return
-    }
-    
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tunetv_backup_${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string
-        const data = JSON.parse(content)
-        
-        if (data.channels && data.movies) {
-          localStorage.setItem('tunetv_content', content)
-          alert('✅ Datos importados correctamente. Recargando página...')
-          setTimeout(() => {
-            window.location.reload()
-          }, 1500)
-        } else {
-          alert('❌ Archivo de backup inválido')
-        }
-      } catch (err) {
-        alert('❌ Error al leer el archivo')
-      }
-    }
-    reader.readAsText(file)
   }
 
   const handleCopyCode = async () => {
@@ -163,40 +119,23 @@ export default function UserConfigPanel() {
 
       <div className="pt-6 border-t border-[#2F2F2F]">
         <h4 className="text-white font-medium mb-3 flex items-center gap-2">
-          <Share2 className="w-4 h-4 text-[#00D4FF]"/>Compartir entre Dispositivos
+          <Key className="w-4 h-4 text-[#E50914]"/>Importar Programación
         </h4>
-        <p className="text-[#808080] text-xs mb-3">
-          ⚠️ Los códigos solo funcionan en este navegador. Para compartir entre dispositivos usa el backup:
-        </p>
-        
-        <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4 mb-3">
-          <p className="text-white text-sm font-medium mb-2">📤 Exportar mi programación:</p>
-          <button 
-            onClick={handleExportData}
-            className="w-full py-2 bg-[#00D4FF] text-black rounded-md hover:bg-[#00B8D9] font-medium flex items-center justify-center gap-2"
-          >
-            <Download className="w-4 h-4"/>Descargar Backup
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={importCode}
+            onChange={(e) => setImportCode(e.target.value.toUpperCase())}
+            placeholder="Código (ej: ABC123)"
+            maxLength={6}
+            className="flex-1 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm font-mono"
+          />
+          <button onClick={handleImportCode} disabled={!importCode.trim()} className="px-4 py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50">
+            Importar
           </button>
-          <p className="text-[#808080] text-xs mt-2">
-            Descarga un archivo con todas tus URLs y configuración
-          </p>
         </div>
-
-        <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
-          <p className="text-white text-sm font-medium mb-2">📥 Importar programación:</p>
-          <label className="w-full py-2 bg-[#2F2F2F] text-white rounded-md hover:bg-[#3F3F3F] font-medium flex items-center justify-center gap-2 cursor-pointer">
-            <Upload className="w-4 h-4"/>Seleccionar Archivo
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportData}
-              className="hidden"
-            />
-          </label>
-          <p className="text-[#808080] text-xs mt-2">
-            Carga el archivo de backup en otro dispositivo
-          </p>
-        </div>
+        {importStatus === 'success' && <p className="text-green-400 text-sm mt-2">¡Importado exitosamente!</p>}
+        {importStatus === 'error' && <p className="text-[#E50914] text-sm mt-2">Código no válido</p>}
       </div>
 
       {isAdmin && (
