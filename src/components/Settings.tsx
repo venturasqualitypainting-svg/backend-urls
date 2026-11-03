@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Sparkles, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save } from 'lucide-react'
+import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Sparkles, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Download } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContent } from '../context/ContentContext'
 
@@ -54,6 +54,55 @@ export default function SettingsPanel() {
   const handleLogout = () => {
     logout()
     setSuccess('Sesión cerrada')
+  }
+
+  const handleExportData = () => {
+    const data = localStorage.getItem('tunetv_content')
+    if (!data) {
+      setError('No hay datos para exportar')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+    
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tunetv_backup_${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setSuccess('✅ Backup descargado correctamente')
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const data = JSON.parse(content)
+        
+        if (data.channels && data.movies) {
+          localStorage.setItem('tunetv_content', content)
+          setSuccess('✅ Datos restaurados correctamente. Recarga la página.')
+          setTimeout(() => {
+            window.location.reload()
+          }, 2000)
+        } else {
+          setError('❌ Archivo de backup inválido')
+          setTimeout(() => setError(''), 3000)
+        }
+      } catch (err) {
+        setError('❌ Error al leer el archivo')
+        setTimeout(() => setError(''), 3000)
+      }
+    }
+    reader.readAsText(file)
   }
 
   const handleImportCategory = async (categoryId: Category) => {
@@ -378,6 +427,32 @@ export default function SettingsPanel() {
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
+              <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3">
+                <Save className="w-5 h-5 text-[#00D4FF]"/>Backup de Datos
+              </h4>
+              <p className="text-[#808080] text-sm mb-3">
+                Exporta tus URLs y configuraciones para no perderlas nunca más
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleExportData}
+                  className="flex-1 py-2 bg-[#00D4FF] text-black rounded-md hover:bg-[#00B8D9] font-medium flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4"/>Exportar Backup
+                </button>
+                <label className="flex-1 py-2 bg-[#2F2F2F] text-white rounded-md hover:bg-[#3F3F3F] font-medium flex items-center justify-center gap-2 cursor-pointer">
+                  <Upload className="w-4 h-4"/>Restaurar Backup
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportData}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             </div>
 
             <button onClick={handleLogout} className="w-full py-3 bg-[#2F2F2F] text-[#E50914] border border-[#E50914]/30 rounded-md font-medium hover:bg-[#E50914]/10 flex items-center justify-center gap-2">

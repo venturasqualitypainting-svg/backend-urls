@@ -50,7 +50,12 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     if (saved) {
       try {
         const data = JSON.parse(saved)
-        return data.channels || defaultChannels
+        // Migrar canales antiguos con categoría 'tv' a 'movies'
+        const migrated = (data.channels || defaultChannels).map((c: any) => ({
+          ...c,
+          category: c.category === 'tv' ? 'movies' : c.category
+        }))
+        return migrated
       } catch {
         return defaultChannels
       }
