@@ -79,7 +79,10 @@ function AppContent() {
             <div className="flex items-center gap-3 flex-shrink-0">
               <TuneTVLogo size={44}/>
               <div className="hidden sm:block">
-                <h1 className="text-xl font-black tracking-tight gradient-text">TUNETV</h1>
+                <h1 className="text-2xl font-bold tracking-wide">
+                  <span className="text-white">TUNE</span>
+                  <span className="text-[#E50914]">TV</span>
+                </h1>
               </div>
             </div>
 
@@ -323,7 +326,11 @@ function AppContent() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <TuneTVLogo size={32}/>
-              <span className="text-sm text-[#808080]">© 2026 TuneTV</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold text-white">TUNE</span>
+                <span className="text-lg font-bold text-[#E50914]">TV</span>
+              </div>
+              <span className="text-sm text-[#808080] ml-2">© 2026</span>
             </div>
             <div className="flex items-center gap-6 text-sm text-[#808080]">
               <a href="#" className="hover:text-white transition-colors">Términos</a>
