@@ -40,27 +40,56 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUserConfig({ ...userConfig, password: '' })
   }
 
-  const generateShareCode = (): string => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
-    const config = userConfig || { password: '', shareCode: '', customChannels: [], customMovies: [] }
-    config.shareCode = code
-    
-    // Guardar los datos del contenido asociados al código
+  const generateShareCode = async (): Promise<string> => {
     const contentData = localStorage.getItem('tunetv_content')
-    if (contentData) {
-      localStorage.setItem(`tunetv_share_${code}`, contentData)
+    if (!contentData) {
+      throw new Error('No hay datos para compartir')
     }
+
+    const content = JSON.parse(contentData)
     
-    setUserConfig(config)
-    return code
+    try {
+      // POST al servidor con los datos
+      const response = await fetch('https://onrender.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          channels: content.channels || [],
+          movies: content.movies || []
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al generar código')
+      }
+
+      const data = await response.json()
+      const code = data.code || data.codigo
+      
+      // Guardar el código en el config del usuario
+      const config = userConfig || { password: '', shareCode: '', customChannels: [], customMovies: [] }
+      config.shareCode = code
+      setUserConfig(config)
+      
+      return code
+    } catch (error) {
+      console.error('Error generando código:', error)
+      throw error
+    }
   }
 
   const importFromShareCode = async (code: string): Promise<boolean> => {
-    const shareData = localStorage.getItem(`tunetv_share_${code}`)
-    if (!shareData) return false
-    
     try {
-      const data = JSON.parse(shareData)
+      // GET al servidor con el código
+      const response = await fetch(`https://onrender.com/${code}`)
+      
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
       
       // Importar contenido
       const existingContent = localStorage.getItem('tunetv_content')
@@ -68,18 +97,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
       
       // Fusionar canales (evitar duplicados por URL)
       const existingUrls = new Set(content.channels.map((c: any) => c.url))
-      const newChannels = data.channels.filter((c: any) => !existingUrls.has(c.url))
+      const newChannels = (data.channels || []).filter((c: any) => !existingUrls.has(c.url))
       content.channels = [...content.channels, ...newChannels]
       
       // Fusionar películas
       const existingMovieUrls = new Set(content.movies.map((m: any) => m.url))
-      const newMovies = data.movies.filter((m: any) => !existingMovieUrls.has(m.url))
+      const newMovies = (data.movies || []).filter((m: any) => !existingMovieUrls.has(m.url))
       content.movies = [...content.movies, ...newMovies]
       
       localStorage.setItem('tunetv_content', JSON.stringify(content))
       
       return true
-    } catch {
+    } catch (error) {
+      console.error('Error importando código:', error)
       return false
     }
   }
