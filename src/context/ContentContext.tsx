@@ -47,8 +47,15 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const { data: channelsData } = await supabase.from('channels').select('*').order('created_at', { ascending: false })
-      const { data: moviesData } = await supabase.from('movies').select('*').order('created_at', { ascending: false })
+      console.log('📡 Cargando datos desde Supabase...')
+      const { data: channelsData, error: cErr } = await supabase.from('channels').select('*').order('created_at', { ascending: false })
+      const { data: moviesData, error: mErr } = await supabase.from('movies').select('*').order('created_at', { ascending: false })
+      
+      if (cErr) console.error('Error cargando canales:', cErr)
+      if (mErr) console.error('Error cargando películas:', mErr)
+      
+      console.log('✅ Canales cargados:', channelsData?.length || 0)
+      console.log('✅ Películas cargadas:', moviesData?.length || 0)
 
       if (channelsData) setChannels(channelsData)
       if (moviesData) setMovies(moviesData)
@@ -106,7 +113,12 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     if (newChannels.length === 0) return 0
 
     const { data, error } = await supabase.from('channels').insert(newChannels).select()
-    if (!error && data) {
+    if (error) {
+      console.error('Error al guardar en Supabase:', error)
+      return 0
+    }
+    
+    if (data) {
       setChannels(prev => [...prev, ...data])
       return data.length
     }

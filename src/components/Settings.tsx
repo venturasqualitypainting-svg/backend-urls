@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Sparkles, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Download } from 'lucide-react'
+import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContent } from '../context/ContentContext'
 
@@ -10,6 +10,7 @@ interface StreamCheck {
   group?: string
   status: 'checking' | 'online' | 'offline' | 'error'
   message?: string
+  detectedCategory?: string
 }
 
 type Category = 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'movies'
@@ -23,6 +24,32 @@ const categories = [
   { id: 'premium' as Category, name: 'Premium', icon: Crown, color: 'amber' },
   { id: 'cineclasico' as Category, name: 'Cine Clásico', icon: Film, color: 'brown' }
 ]
+
+// 🎯 FUNCIÓN MÁGICA: Detecta automáticamente la categoría según el nombre/grupo
+const detectCategory = (name: string, group: string): Category => {
+  const text = `${name} ${group}`.toLowerCase()
+  
+  // Deportes
+  if (text.match(/\b(deporte|sport|espn|fox sport|tds|tyc|directv sport|fox sports|bein|dazn|gol|liga|nba|nfl|mlb|ufc|f1|formula 1|tenis|tennis|olimp|copa|mundial|uefa|champions|premier|la liga|serie a|bundesliga|mls|futbol|football|soccer)\b/)) return 'deportes'
+  
+  // Kids
+  if (text.match(/\b(kid|niño|niña|infantil|cartoon|disney|nick|nickelodeon|baby|infant|disney junior|disney xd|disney channel|cartoon network|baby tv|once niñas|once kids|pac child|paka paka|zoom|jetix|boomerang|peque|peques|chico|chicos|children|kids)\b/)) return 'kids'
+  
+  // Historia / Documentales
+  if (text.match(/\b(historia|history|documental|documentary|discovery|national geographic|nat geo|natgeo|animal planet|investigation|crime|investigacion|militar|military|war|ciencia|science|space|explora|explorer|ancient|antigu|arqueolog)\b/)) return 'historia'
+  
+  // Cine Clásico
+  if (text.match(/\b(clásic|classic|retro|antigu|viejo|oldies|golden age|epoca de oro|dorada|años 50|años 60|años 70|años 80|clasico|classics|cinema classico|cine de oro)\b/)) return 'cineclasico'
+  
+  // Premium
+  if (text.match(/\b(premium|hbo|max|star|paramount|apple tv|netflix|amazon prime|disney\+|star\+|hbo max|hbomax|showtime|cinemax|studio universal|universal premium|fox premium|amc|comedy central|mtv|vh1|a&e|lifetime|fx|fxx|tnt|warner)\b/)) return 'premium'
+  
+  // Entretenimiento
+  if (text.match(/\b(entretenimiento|entertainment|variety|show|comedy|comedia|reality|talent|bailando|cantando|concurs|telenovela|novela|series|serie|telefe|televisa|tv azteca|record|gala|farandula|espectaculo|magazine|talk show|late night|mtv|vh1|e!|entertainment)\b/)) return 'entretenimiento'
+  
+  // Por defecto: Movies & Series
+  return 'movies'
+}
 
 export default function SettingsPanel() {
   const { isAdmin, login, logout } = useAuth()
@@ -39,6 +66,7 @@ export default function SettingsPanel() {
   const [checkResults, setCheckResults] = useState<StreamCheck[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const [checkTargetCategory, setCheckTargetCategory] = useState<Category>('movies')
+  const [autoDetect, setAutoDetect] = useState(true) // 🆕 Modo detección automática
 
   const handleLogin = () => {
     setError('')
@@ -56,62 +84,13 @@ export default function SettingsPanel() {
     setSuccess('Sesión cerrada')
   }
 
-  const handleExportData = () => {
-    const data = localStorage.getItem('tunetv_content')
-    if (!data) {
-      setError('No hay datos para exportar')
-      setTimeout(() => setError(''), 3000)
-      return
-    }
-    
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `tunetv_backup_${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    setSuccess('✅ Backup descargado correctamente')
-    setTimeout(() => setSuccess(''), 3000)
-  }
-
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string
-        const data = JSON.parse(content)
-        
-        if (data.channels && data.movies) {
-          localStorage.setItem('tunetv_content', content)
-          setSuccess('✅ Datos restaurados correctamente. Recarga la página.')
-          setTimeout(() => {
-            window.location.reload()
-          }, 2000)
-        } else {
-          setError('❌ Archivo de backup inválido')
-          setTimeout(() => setError(''), 3000)
-        }
-      } catch (err) {
-        setError('❌ Error al leer el archivo')
-        setTimeout(() => setError(''), 3000)
-      }
-    }
-    reader.readAsText(file)
-  }
-
   const handleImportCategory = async (categoryId: Category) => {
     const url = categoryUrls[categoryId]
     if (!url.trim()) return
     setImportingCategory(categoryId)
     setError('')
     setSuccess('')
-    
+
     try {
       let content = ''
       if (url.startsWith('http')) {
@@ -129,7 +108,7 @@ export default function SettingsPanel() {
         content = url
       }
 
-      const importedCount = importM3U(content, categoryId)
+      const importedCount = await importM3U(content, categoryId)
       if (importedCount > 0) {
         const categoryName = categories.find(c => c.id === categoryId)?.name || categoryId
         setSuccess(`✅ ${importedCount} canales importados en ${categoryName}`)
@@ -148,21 +127,21 @@ export default function SettingsPanel() {
     if (!checkList.trim()) return
     setIsChecking(true)
     setCheckResults([])
-    
+
     const lines = checkList.split('\n')
     const results: StreamCheck[] = []
     let currentName = ''
     let currentLogo = ''
     let currentGroup = ''
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
-      
+
       if (line.startsWith('#EXTINF:')) {
         const nameMatch = line.match(/,([^,]+)$/i)
         const logoMatch = line.match(/tvg-logo="([^"]*)"/i)
         const groupMatch = line.match(/group-title="([^"]*)"/i)
-        
+
         currentName = nameMatch ? nameMatch[1].trim() : ''
         currentLogo = logoMatch ? logoMatch[1] : ''
         currentGroup = groupMatch ? groupMatch[1] : ''
@@ -171,16 +150,20 @@ export default function SettingsPanel() {
       } else if (line && (line.startsWith('http') || line.includes('.m3u8'))) {
         const cleanUrl = line
         const channelName = currentName || cleanUrl.split('/').pop() || 'Stream'
-        
-        results.push({ 
-          url: cleanUrl, 
+
+        // 🎯 DETECCIÓN AUTOMÁTICA DE CATEGORÍA
+        const detectedCategory = detectCategory(channelName, currentGroup)
+
+        results.push({
+          url: cleanUrl,
           name: channelName,
           logo: currentLogo,
           group: currentGroup,
-          status: 'checking' 
+          status: 'checking',
+          detectedCategory
         })
         setCheckResults([...results])
-        
+
         try {
           const response = await fetch(cleanUrl, { method: 'GET', mode: 'cors', signal: AbortSignal.timeout(8000) })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -189,7 +172,7 @@ export default function SettingsPanel() {
           results[results.length - 1] = { ...results[results.length - 1], status: 'offline', message: err.message || 'No accesible' }
         }
         setCheckResults([...results])
-        
+
         currentName = ''
         currentLogo = ''
         currentGroup = ''
@@ -212,27 +195,71 @@ export default function SettingsPanel() {
     setCheckResults(checkResults.filter(result => result.url !== url))
   }
 
-  const handleSaveWorkingStreams = () => {
+  // 🎯 NUEVA FUNCIÓN: Guardar streams en sus categorías detectadas automáticamente
+  const handleSaveWorkingStreams = async () => {
     const workingStreams = checkResults.filter(result => result.status === 'online')
     if (workingStreams.length === 0) {
       setError('No hay streams funcionando')
       setTimeout(() => setError(''), 3000)
       return
     }
-    const m3uContent = workingStreams.map(stream => {
-      let extinf = '#EXTINF:-1'
-      if (stream.logo) extinf += ` tvg-logo="${stream.logo}"`
-      if (stream.group) extinf += ` group-title="${stream.group}"`
-      extinf += `,${stream.name}`
-      return `${extinf}\n${stream.url}`
-    }).join('\n')
-    const importedCount = importM3U(m3uContent, checkTargetCategory)
-    const categoryName = categories.find(c => c.id === checkTargetCategory)?.name || checkTargetCategory
-    setSuccess(`✅ ${importedCount} streams guardados en ${categoryName}`)
-    setCheckResults([])
-    setCheckList('')
-    setTimeout(() => setSuccess(''), 3000)
+    
+    setIsChecking(true)
+    
+    // Agrupar por categoría detectada
+    const groupedByCategory: Record<string, typeof workingStreams> = {}
+    workingStreams.forEach(stream => {
+      const cat = autoDetect ? (stream.detectedCategory || 'movies') : checkTargetCategory
+      if (!groupedByCategory[cat]) groupedByCategory[cat] = []
+      groupedByCategory[cat].push(stream)
+    })
+
+    let totalSaved = 0
+    const categorySummary: string[] = []
+
+    try {
+      // Guardar cada grupo en su categoría correspondiente
+      for (const [categoryId, streams] of Object.entries(groupedByCategory)) {
+        const m3uContent = streams.map(stream => {
+          let extinf = '#EXTINF:-1'
+          if (stream.logo) extinf += ` tvg-logo="${stream.logo}"`
+          if (stream.group) extinf += ` group-title="${stream.group}"`
+          extinf += `,${stream.name}`
+          return `${extinf}\n${stream.url}`
+        }).join('\n')
+
+        const importedCount = await importM3U(m3uContent, categoryId as Category)
+        totalSaved += importedCount
+        
+        if (importedCount > 0) {
+          const catName = categories.find(c => c.id === categoryId)?.name || categoryId
+          categorySummary.push(`${importedCount} en ${catName}`)
+        }
+      }
+
+      if (totalSaved > 0) {
+        setSuccess(`✅ ${totalSaved} streams guardados: ${categorySummary.join(', ')}`)
+        setCheckResults([])
+        setCheckList('')
+      } else {
+        setError('No se pudo guardar en la base de datos')
+      }
+    } catch (error) {
+      console.error('Error al guardar:', error)
+      setError('Error de conexión al guardar')
+    } finally {
+      setIsChecking(false)
+      setTimeout(() => { setSuccess(''); setError('') }, 5000)
+    }
   }
+
+  // Calcular resumen de detección automática
+  const onlineStreams = checkResults.filter(r => r.status === 'online')
+  const categoryCount: Record<string, number> = {}
+  onlineStreams.forEach(s => {
+    const cat = s.detectedCategory || 'movies'
+    categoryCount[cat] = (categoryCount[cat] || 0) + 1
+  })
 
   return (
     <div className="px-4 md:px-12 py-8 max-w-[1920px] mx-auto">
@@ -300,6 +327,11 @@ export default function SettingsPanel() {
                 <CheckCircle className="w-4 h-4"/>{success}
               </div>
             )}
+            {error && (
+              <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3">
+                <AlertCircle className="w-4 h-4"/>{error}
+              </div>
+            )}
 
             <div className="space-y-4">
               <h4 className="text-white font-bold text-lg flex items-center gap-2">
@@ -340,15 +372,15 @@ export default function SettingsPanel() {
 
             <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
               <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3">
-                <CheckCircle className="w-5 h-5 text-green-400"/>Verificador de Streams
+                <CheckCircle className="w-5 h-5 text-green-400"/>Verificador de Streams con Detección Automática
               </h4>
               <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3 mb-3">
                 <p className="text-white text-xs font-medium mb-1">📋 Instrucciones:</p>
                 <ol className="text-[#808080] text-xs space-y-1 list-decimal list-inside">
                   <li>Pega tus URLs o lista M3U abajo</li>
                   <li>Haz clic en "Verificar Streams"</li>
-                  <li>Selecciona la categoría destino donde quieres guardarlos</li>
-                  <li>Haz clic en "Guardar Streams Funcionales"</li>
+                  <li>El sistema detectará automáticamente la categoría de cada canal</li>
+                  <li>Haz clic en "Guardar Streams Funcionales" y se guardarán en su categoría correcta</li>
                 </ol>
               </div>
               <textarea
@@ -368,48 +400,56 @@ export default function SettingsPanel() {
 
               {checkResults.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h5 className="text-white text-sm font-medium">Resultados:</h5>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-green-400">✓ {checkResults.filter(r => r.status === 'online').length} online</span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-green-400">✓ {onlineStreams.length} online</span>
                       <span className="text-[#E50914]">✗ {checkResults.filter(r => r.status === 'offline').length} offline</span>
                     </div>
                   </div>
-                  {checkResults.map((result, index) => (
-                    <div key={index} className="flex items-center gap-3 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md p-3">
-                      {result.status === 'checking' && <div className="w-5 h-5 border-2 border-[#00D4FF] border-t-transparent rounded-full animate-spin"/>}
-                      {result.status === 'online' && <CheckCircle className="w-5 h-5 text-green-400"/>}
-                      {result.status === 'offline' && <X className="w-5 h-5 text-[#E50914]"/>}
-                      {result.logo ? (
-                        <img src={result.logo} alt={result.name} className="w-12 h-12 object-contain rounded bg-[#1a1a1a] p-1" onError={(e) => { e.currentTarget.style.display = 'none' }}/>
-                      ) : (
-                        <div className="w-12 h-12 bg-gradient-to-br from-[#E50914]/30 to-[#B00710]/30 rounded flex items-center justify-center">
-                          <span className="text-white text-xs font-bold text-center px-1 leading-tight">{result.name.substring(0, 12)}</span>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{result.name}</p>
-                        {result.group && <p className="text-[#808080] text-xs truncate">{result.group}</p>}
-                        <p className="text-[#808080] text-xs truncate">{result.url}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {result.status === 'online' && (
-                          <button onClick={() => handleCopyUrl(result.url)} className="p-1.5 bg-[#3F3F3F] hover:bg-[#4F4F4F] rounded" title="Copiar URL">
-                            <Copy className="w-3.5 h-3.5 text-white"/>
-                          </button>
-                        )}
-                        {result.status === 'offline' && (
-                          <button onClick={() => handleRemoveOfflineUrl(result.url)} className="p-1.5 bg-[#E50914]/20 hover:bg-[#E50914]/40 rounded" title="Eliminar">
-                            <Trash2 className="w-3.5 h-3.5 text-[#E50914]"/>
-                          </button>
-                        )}
+
+                  {/* 🎯 RESUMEN DE DETECCIÓN AUTOMÁTICA */}
+                  {onlineStreams.length > 0 && Object.keys(categoryCount).length > 0 && (
+                    <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-md p-3">
+                      <p className="text-white text-xs font-bold mb-2 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(categoryCount).map(([catId, count]) => {
+                          const cat = categories.find(c => c.id === catId)
+                          const CatIcon = cat?.icon || Film
+                          return (
+                            <div key={catId} className="flex items-center gap-1.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md px-2 py-1">
+                              <CatIcon className="w-3.5 h-3.5 text-[#E50914]"/>
+                              <span className="text-white text-xs font-medium">{count}</span>
+                              <span className="text-[#808080] text-xs">en {cat?.name || catId}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
-                  ))}
-                  {checkResults.some(r => r.status === 'online') && !isChecking && (
-                    <>
-                      <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3">
-                        <label className="text-white text-sm font-medium mb-2 block">Guardar en categoría:</label>
+                  )}
+
+                  {/* Toggle de detección automática */}
+                  <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={autoDetect}
+                        onChange={(e) => setAutoDetect(e.target.checked)}
+                        className="w-4 h-4 accent-[#E50914]"
+                      />
+                      <div className="flex-1">
+                        <p className="text-white text-sm font-medium flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías
+                        </p>
+                        <p className="text-[#808080] text-xs">Cada canal se guardará en la categoría que le corresponda según su nombre</p>
+                      </div>
+                    </label>
+                    
+                    {!autoDetect && (
+                      <div className="mt-3 pt-3 border-t border-[#3F3F3F]">
+                        <label className="text-white text-xs font-medium mb-2 block">Guardar TODO en categoría:</label>
                         <select
                           value={checkTargetCategory}
                           onChange={(e) => setCheckTargetCategory(e.target.value as Category)}
@@ -420,39 +460,57 @@ export default function SettingsPanel() {
                           ))}
                         </select>
                       </div>
-                      <button onClick={handleSaveWorkingStreams} className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-md font-medium flex items-center justify-center gap-2">
-                        <Save className="w-5 h-5"/>Guardar Streams Funcionales
-                      </button>
-                    </>
+                    )}
+                  </div>
+
+                  {checkResults.map((result, index) => {
+                    const detectedCat = categories.find(c => c.id === result.detectedCategory)
+                    const DetectedIcon = detectedCat?.icon || Film
+                    return (
+                      <div key={index} className="flex items-center gap-3 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md p-3">
+                        {result.status === 'checking' && <div className="w-5 h-5 border-2 border-[#00D4FF] border-t-transparent rounded-full animate-spin"/>}
+                        {result.status === 'online' && <CheckCircle className="w-5 h-5 text-green-400"/>}
+                        {result.status === 'offline' && <X className="w-5 h-5 text-[#E50914]"/>}
+                        {result.logo ? (
+                          <img src={result.logo} alt={result.name} className="w-12 h-12 object-contain rounded bg-[#1a1a1a] p-1" onError={(e) => { e.currentTarget.style.display = 'none' }}/>
+                        ) : (
+                          <div className="w-12 h-12 bg-gradient-to-br from-[#E50914]/30 to-[#B00710]/30 rounded flex items-center justify-center">
+                            <span className="text-white text-xs font-bold text-center px-1 leading-tight">{result.name.substring(0, 12)}</span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{result.name}</p>
+                          {result.group && <p className="text-[#808080] text-xs truncate">Grupo: {result.group}</p>}
+                          {result.status === 'online' && detectedCat && (
+                            <p className="text-xs text-purple-400 flex items-center gap-1 mt-0.5">
+                              <DetectedIcon className="w-3 h-3"/>→ {detectedCat.name}
+                            </p>
+                          )}
+                          <p className="text-[#808080] text-xs truncate">{result.url}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {result.status === 'online' && (
+                            <button onClick={() => handleCopyUrl(result.url)} className="p-1.5 bg-[#3F3F3F] hover:bg-[#4F4F4F] rounded" title="Copiar URL">
+                              <Copy className="w-3.5 h-3.5 text-white"/>
+                            </button>
+                          )}
+                          {result.status === 'offline' && (
+                            <button onClick={() => handleRemoveOfflineUrl(result.url)} className="p-1.5 bg-[#E50914]/20 hover:bg-[#E50914]/40 rounded" title="Eliminar">
+                              <Trash2 className="w-3.5 h-3.5 text-[#E50914]"/>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {onlineStreams.length > 0 && !isChecking && (
+                    <button onClick={handleSaveWorkingStreams} disabled={isChecking} className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-md font-medium flex items-center justify-center gap-2 disabled:opacity-70">
+                      {isChecking ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando en sus categorías...</> : <><Save className="w-5 h-5"/>Guardar {onlineStreams.length} Streams en sus Categorías Correctas</>}
+                    </button>
                   )}
                 </div>
               )}
-            </div>
-
-            <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
-              <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3">
-                <Save className="w-5 h-5 text-[#00D4FF]"/>Backup de Datos
-              </h4>
-              <p className="text-[#808080] text-sm mb-3">
-                Exporta tus URLs y configuraciones para no perderlas nunca más
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleExportData}
-                  className="flex-1 py-2 bg-[#00D4FF] text-black rounded-md hover:bg-[#00B8D9] font-medium flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4"/>Exportar Backup
-                </button>
-                <label className="flex-1 py-2 bg-[#2F2F2F] text-white rounded-md hover:bg-[#3F3F3F] font-medium flex items-center justify-center gap-2 cursor-pointer">
-                  <Upload className="w-4 h-4"/>Restaurar Backup
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportData}
-                    className="hidden"
-                  />
-                </label>
-              </div>
             </div>
 
             <button onClick={handleLogout} className="w-full py-3 bg-[#2F2F2F] text-[#E50914] border border-[#E50914]/30 rounded-md font-medium hover:bg-[#E50914]/10 flex items-center justify-center gap-2">
