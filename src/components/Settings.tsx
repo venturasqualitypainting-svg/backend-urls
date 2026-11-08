@@ -65,6 +65,7 @@ export default function SettingsPanel() {
     category: 'movies' as Category,
     genre: 'Movies'
   })
+  const [episodes, setEpisodes] = useState<{ title: string, url: string }[]>([{ title: 'Episodio 1', url: '' }])
   const [isAddingMovie, setIsAddingMovie] = useState(false)
 
   const handleLogin = () => {
@@ -110,27 +111,39 @@ export default function SettingsPanel() {
     e.preventDefault()
   }
 
-  // 🚨 FUNCIÓN ACTUALIZADA: Sin 'duration' y con manejo de errores detallado
   const handleAddMovie = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMovie.title || !newMovie.url) {
-      setError('El título y la URL del stream son obligatorios')
+    if (!newMovie.title) {
+      setError('El título es obligatorio')
       return
     }
+    
+    const isSeries = newMovie.genre === 'Series'
+    if (isSeries && episodes.length > 0 && !episodes[0].url) {
+      setError('Debes agregar al menos una URL de episodio para una Serie')
+      return
+    }
+    if (!isSeries && !newMovie.url) {
+      setError('La URL del stream es obligatoria para Películas')
+      return
+    }
+
     setIsAddingMovie(true)
     try {
       await addMovie({
         title: newMovie.title,
-        url: newMovie.url,
+        url: isSeries ? (episodes[0]?.url || '') : newMovie.url,
         poster: newMovie.poster || undefined,
         description: newMovie.description || undefined,
         rating: parseFloat(newMovie.rating) || 7.5,
         year: new Date().getFullYear(),
         genre: newMovie.genre,
-        category: newMovie.category
+        category: newMovie.category,
+        episodes: isSeries ? episodes : undefined
       })
       setSuccess(`✅ "${newMovie.title}" agregado exitosamente`)
       setNewMovie({ title: '', url: '', poster: '', description: '', rating: '7.5', category: 'movies', genre: 'Movies' })
+      setEpisodes([{ title: 'Episodio 1', url: '' }])
     } catch (err: any) {
       console.error('Error detallado al guardar:', err)
       setError(`Error al guardar: ${err.message || 'Revisa la consola (F12) para más detalles'}`)
@@ -344,7 +357,7 @@ export default function SettingsPanel() {
             {success && <div className="flex items-center gap-2 text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-md p-3"><CheckCircle className="w-4 h-4"/>{success}</div>}
             {error && <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3"><AlertCircle className="w-4 h-4"/>{error}</div>}
 
-            {/* --- MOVIE UPLOAD FORM --- */}
+            {/* --- MOVIE/SERIES UPLOAD FORM --- */}
             <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-6">
               <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-4">
                 <Film className="w-5 h-5 text-[#E50914]"/>Agregar Película o Serie
@@ -352,16 +365,16 @@ export default function SettingsPanel() {
               <form onSubmit={handleAddMovie} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs text-[#808080]">Título *</label>
-                  <input required type="text" value={newMovie.title} onChange={e => setNewMovie({...newMovie, title: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="Ej: Inception" />
+                  <input required type="text" value={newMovie.title} onChange={e => setNewMovie({...newMovie, title: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="Ej: Gold Rush" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Categoría</label>
+                  <label className="text-xs text-[#808080]">Categoría Principal</label>
                   <select value={newMovie.category} onChange={e => setNewMovie({...newMovie, category: e.target.value as Category})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Género / Tipo</label>
+                  <label className="text-xs text-[#808080]">Género / Tipo (Define la fila)</label>
                   <select value={newMovie.genre} onChange={e => setNewMovie({...newMovie, genre: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
                     <option value="Movies">Movies</option>
                     <option value="Series">Series</option>
@@ -373,10 +386,49 @@ export default function SettingsPanel() {
                   <label className="text-xs text-[#808080]">Calificación (1.0 - 10.0)</label>
                   <input type="number" step="0.1" min="1" max="10" value={newMovie.rating} onChange={e => setNewMovie({...newMovie, rating: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="7.5" />
                 </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs text-[#808080]">URL del Stream (.m3u8) *</label>
-                  <input required type="url" value={newMovie.url} onChange={e => setNewMovie({...newMovie, url: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="https://ejemplo.com/stream.m3u8" />
-                </div>
+
+                {/* DYNAMIC EPISODES FOR SERIES */}
+                {newMovie.genre === 'Series' ? (
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs text-[#808080]">Episodios (Agrega al menos uno)</label>
+                    {episodes.map((ep, idx) => (
+                      <div key={idx} className="flex gap-2 mb-2">
+                        <input 
+                          placeholder="Título del episodio (Ej: T1:E1)" 
+                          value={ep.title} 
+                          onChange={e => {
+                            const newEps = [...episodes]
+                            newEps[idx].title = e.target.value
+                            setEpisodes(newEps)
+                          }}
+                          className="flex-1 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
+                        />
+                        <input 
+                          placeholder="URL del stream (.m3u8)" 
+                          value={ep.url} 
+                          onChange={e => {
+                            const newEps = [...episodes]
+                            newEps[idx].url = e.target.value
+                            setEpisodes(newEps)
+                          }}
+                          className="flex-[2] px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
+                        />
+                        {episodes.length > 1 && (
+                          <button type="button" onClick={() => setEpisodes(episodes.filter((_, i) => i !== idx))} className="p-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setEpisodes([...episodes, { title: `Episodio ${episodes.length + 1}`, url: '' }])} className="text-[#E50914] text-sm flex items-center gap-1 hover:underline mt-1">
+                      <Plus className="w-4 h-4" /> Agregar otro episodio
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs text-[#808080]">URL del Stream (.m3u8) *</label>
+                    <input required type="url" value={newMovie.url} onChange={e => setNewMovie({...newMovie, url: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="https://ejemplo.com/stream.m3u8" />
+                  </div>
+                )}
+
                 <div className="space-y-1 md:col-span-2">
                   <label className="text-xs text-[#808080]">Poster (Imagen)</label>
                   <div className="flex items-start gap-4">
@@ -385,23 +437,14 @@ export default function SettingsPanel() {
                       onDragOver={handleDragOver}
                       className="flex-1 cursor-pointer border-2 border-dashed border-[#3F3F3F] hover:border-[#E50914] rounded-md p-6 flex flex-col items-center justify-center transition-colors bg-[#2F2F2F]"
                     >
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        onChange={handleFileChange} 
-                      />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                       <Upload className="w-8 h-8 text-[#808080] mb-2" />
                       <span className="text-xs text-[#808080] text-center">Arrastra una imagen o haz clic para subir</span>
                     </label>
                     {newMovie.poster && (
                       <div className="relative w-24 h-36 rounded-md overflow-hidden bg-black border border-[#3F3F3F] flex-shrink-0">
                         <img src={newMovie.poster} alt="Preview" className="w-full h-full object-cover" />
-                        <button 
-                          type="button"
-                          onClick={() => setNewMovie({ ...newMovie, poster: '' })}
-                          className="absolute top-1 right-1 bg-[#E50914] text-white rounded-full p-1 hover:bg-[#F40612] transition-colors"
-                        >
+                        <button type="button" onClick={() => setNewMovie({ ...newMovie, poster: '' })} className="absolute top-1 right-1 bg-[#E50914] text-white rounded-full p-1 hover:bg-[#F40612] transition-colors">
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -410,7 +453,7 @@ export default function SettingsPanel() {
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <label className="text-xs text-[#808080]">Sinopsis / Descripción</label>
-                  <textarea value={newMovie.description} onChange={e => setNewMovie({...newMovie, description: e.target.value})} rows={3} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none resize-none" placeholder="Breve descripción de la película o serie..." />
+                  <textarea value={newMovie.description} onChange={e => setNewMovie({...newMovie, description: e.target.value})} rows={3} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none resize-none" placeholder="Breve descripción..." />
                 </div>
                 <div className="md:col-span-2">
                   <button type="submit" disabled={isAddingMovie} className="w-full py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
@@ -420,7 +463,7 @@ export default function SettingsPanel() {
               </form>
             </div>
 
-            {/* --- M3U IMPORT & STREAM CHECKER --- */}
+            {/* --- REST OF SETTINGS (M3U Import & Stream Checker) --- */}
             <div className="space-y-4">
               <h4 className="text-white font-bold text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-[#E50914]"/>Importar Contenido por Categoría (M3U)</h4>
               <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U</p>

@@ -13,9 +13,9 @@ const normalizeCategory = (cat: string | undefined | null): CategoryId => {
 }
 
 const normalizeGenre = (genre: string | undefined | null): string => {
-  if (!genre) return 'General'
+  if (!genre) return 'Movies'
   const lower = genre.toLowerCase().trim()
-  if (lower === 'movies' || lower === 'movie') return 'Movies'
+  if (lower === 'movies' || lower === 'movie' || lower === 'pelicula' || lower === 'película') return 'Movies'
   if (lower === 'series' || lower === 'serie') return 'Series'
   return genre.charAt(0).toUpperCase() + genre.slice(1)
 }
@@ -39,6 +39,7 @@ export interface Movie {
   url: string
   description?: string
   category: CategoryId
+  episodes?: { title: string; url: string }[]
 }
 
 interface ContentContextType {
@@ -81,7 +82,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     poster: m.poster || undefined,
     url: m.url,
     description: m.description || undefined,
-    category: normalizeCategory(m.category)
+    category: normalizeCategory(m.category),
+    episodes: m.episodes || undefined
   })
 
   const loadData = async () => {
@@ -121,7 +123,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   }
 
   const addMovie = async (movie: Omit<Movie, 'id'>) => {
-    // 🚨 CORRECCIÓN CLAVE: Eliminamos 'duration' para que coincida exactamente con tu esquema de Supabase
     const movieData = {
       title: movie.title,
       url: movie.url,
@@ -130,7 +131,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       rating: Number(movie.rating) || 7.5,
       year: movie.year || new Date().getFullYear(),
       genre: normalizeGenre(movie.genre),
-      category: normalizeCategory(movie.category)
+      category: normalizeCategory(movie.category),
+      episodes: movie.episodes || null
     }
 
     console.log('🎬 Enviando a Supabase:', movieData)
@@ -139,9 +141,9 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       console.error('❌ ERROR DE SUPABASE AL GUARDAR:', error)
-      throw error // Esto permite que el formulario capture el error exacto
+      throw error
     } else if (data) {
-      console.log('✅ Película guardada:', data)
+      console.log('✅ Película/Serie guardada:', data)
       setMovies(prev => [normalizeMovie(data), ...prev])
     }
   }
