@@ -1,3 +1,4 @@
+// src/components/Movies.tsx
 import { useState, useEffect, useRef } from 'react'
 import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -25,9 +26,6 @@ interface MovieItemType extends HoveredItem {
   year?: number
 }
 
-// ============================================
-// MOVIE CARD (Simple, sin video inline)
-// ============================================
 function MovieCard({
   item,
   onHover,
@@ -45,6 +43,16 @@ function MovieCard({
 }) {
   const { miLista, toggleMiLista, isInMiLista } = useMiLista()
   const inList = isInMiLista(item.id)
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!item.id) {
+      console.error('❌ No se puede eliminar: ID no disponible')
+      return
+    }
+    console.log('🗑️ Intentando eliminar:', item.title, 'con ID:', item.id)
+    if (onDelete) onDelete()
+  }
 
   return (
     <div
@@ -85,7 +93,7 @@ function MovieCard({
             </button>
             {isAdmin && onDelete && (
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete() }}
+                onClick={handleDelete}
                 className="w-8 h-8 rounded-full border-2 border-white/60 flex items-center justify-center text-white hover:border-[#E50914] hover:text-[#E50914] transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
@@ -101,9 +109,6 @@ function MovieCard({
   )
 }
 
-// ============================================
-// FLOATING GLOBAL PREVIEW PLAYER
-// ============================================
 function FloatingPreview({ item }: { item: HoveredItem | null }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -241,9 +246,6 @@ function FloatingPreview({ item }: { item: HoveredItem | null }) {
   )
 }
 
-// ============================================
-// MAIN MOVIES COMPONENT
-// ============================================
 export default function Movies({ onPlayMovie }: MoviesProps) {
   const { isAdmin } = useAuth()
   const { movies, channels, removeMovie, removeChannel } = useContent()
@@ -251,15 +253,15 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [hoveredItem, setHoveredItem] = useState<HoveredItem | null>(null)
 
-  const categoryChannels = channels.filter(c => c.category === 'movies')
-  const categoryMovies = movies.filter(m => m.category === 'movies')
+  const categoryChannels = channels.filter(c => (c.category || '').toLowerCase().trim() === 'movies')
+  const categoryMovies = movies.filter(m => (m.category || '').toLowerCase().trim() === 'movies')
 
   const items: MovieItemType[] = [
     ...categoryChannels.map(c => ({
       id: c.id,
       title: c.name,
       year: new Date().getFullYear(),
-      genre: (c.group === 'General' || !c.group) ? 'Series' : c.group,
+      genre: (c.group || '').toLowerCase() === 'general' || !c.group ? 'Series' : c.group,
       rating: 7.5,
       poster: c.logo,
       url: c.url,
@@ -270,7 +272,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
       id: m.id,
       title: m.title,
       year: m.year,
-      genre: (m.genre === 'General' || !m.genre) ? 'Series' : m.genre,
+      genre: (m.genre || '').toLowerCase() === 'general' || !m.genre ? 'Series' : m.genre,
       rating: m.rating,
       poster: m.poster,
       url: m.url,
@@ -280,6 +282,19 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
   ]
 
   const filteredItems = items.filter(m => m.title.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const handleDeleteItem = (item: MovieItemType) => {
+    if (!item.id) {
+      console.error('❌ No se puede eliminar: ID no disponible para', item.title)
+      return
+    }
+    console.log('🗑️ Eliminando item:', item.title, 'Tipo:', item.type, 'ID:', item.id)
+    if (item.type === 'channel') {
+      removeChannel(item.id)
+    } else {
+      removeMovie(item.id)
+    }
+  }
 
   const toggleItemSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -294,10 +309,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
     if (confirm(`¿Eliminar ${selectedItems.size} elemento(s)?`)) {
       selectedItems.forEach(id => {
         const item = items.find(i => i.id === id)
-        if (item) {
-          if (item.type === 'channel') removeChannel(id)
-          else removeMovie(id)
-        }
+        if (item) handleDeleteItem(item)
       })
       setSelectedItems(new Set())
     }
@@ -375,10 +387,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
                   onHoverEnd={() => setHoveredItem(null)}
                   onPlay={() => onPlayMovie(item.url, item.title, index)}
                   isAdmin={isAdmin}
-                  onDelete={() => {
-                    if (item.type === 'channel') removeChannel(item.id)
-                    else removeMovie(item.id)
-                  }}
+                  onDelete={() => handleDeleteItem(item)}
                 />
               ))}
             </div>
@@ -399,10 +408,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
                       onHoverEnd={() => setHoveredItem(null)}
                       onPlay={() => onPlayMovie(item.url, item.title, index)}
                       isAdmin={isAdmin}
-                      onDelete={() => {
-                        if (item.type === 'channel') removeChannel(item.id)
-                        else removeMovie(item.id)
-                      }}
+                      onDelete={() => handleDeleteItem(item)}
                     />
                   ))}
                 </div>

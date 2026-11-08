@@ -13,7 +13,7 @@ interface StreamCheck {
   detectedCategory?: string
 }
 
-type Category = 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'movies'
+type Category = 'movies' | 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico'
 
 const categories = [
   { id: 'movies' as Category, name: 'Movies & Series', icon: Film, color: 'purple' },
@@ -110,6 +110,7 @@ export default function SettingsPanel() {
     e.preventDefault()
   }
 
+  // 🚨 FUNCIÓN ACTUALIZADA: Sin 'duration' y con manejo de errores detallado
   const handleAddMovie = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMovie.title || !newMovie.url) {
@@ -126,13 +127,13 @@ export default function SettingsPanel() {
         rating: parseFloat(newMovie.rating) || 7.5,
         year: new Date().getFullYear(),
         genre: newMovie.genre,
-        duration: '',
         category: newMovie.category
       })
       setSuccess(`✅ "${newMovie.title}" agregado exitosamente`)
       setNewMovie({ title: '', url: '', poster: '', description: '', rating: '7.5', category: 'movies', genre: 'Movies' })
-    } catch (err) {
-      setError('Error al guardar la película')
+    } catch (err: any) {
+      console.error('Error detallado al guardar:', err)
+      setError(`Error al guardar: ${err.message || 'Revisa la consola (F12) para más detalles'}`)
     } finally {
       setIsAddingMovie(false)
       setTimeout(() => setSuccess(''), 3000)
