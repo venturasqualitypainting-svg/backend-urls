@@ -5,6 +5,7 @@ import { useContent, Movie } from '../context/ContentContext'
 import { useMiLista } from '../hooks/useMiLista'
 import Hls from 'hls.js'
 import { SkeletonRow } from './Skeleton'
+import Row from './Row'
 
 interface MoviesProps {
   onPlayMovie: (url: string, title: string, index?: number) => void
@@ -287,28 +288,6 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
     }
   }
 
-  const ContentRow = ({ title, items }: { title: string, items: Movie[] }) => {
-    if (items.length === 0) return null
-    return (
-      <div className="mb-8">
-        <h3 className="text-white text-xl font-bold mb-4 px-4 md:px-12">{title}</h3>
-        <div className="flex gap-4 overflow-x-auto pb-4 px-4 md:px-12 scrollbar-hide">
-          {items.map((item) => (
-            <MovieCard
-              key={item.id}
-              item={item}
-              onHover={() => setHoveredItem(item)}
-              onHoverEnd={() => setHoveredItem(null)}
-              onClick={() => item.genre?.toLowerCase().trim() === 'series' ? setSelectedSeries(item) : onPlayMovie(item.url, item.title)}
-              isAdmin={isAdmin}
-              onDelete={() => handleDeleteItem(item)}
-            />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="pt-8">
       <FloatingPreview item={hoveredItem} />
@@ -366,9 +345,40 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
           <SkeletonRow />
         </div>
       ) : (
-        <div className="px-4 md:px-12 space-y-8">
-          <ContentRow title="Movies" items={filteredMovies} />
-          <ContentRow title="Series" items={filteredSeries} />
+        <div className="space-y-8">
+          {/* 🎯 MOVIES ROW - Using premium <Row> component with arrows */}
+          {filteredMovies.length > 0 && (
+            <Row title={searchTerm ? `Resultados: ${searchTerm}` : 'Movies'}>
+              {filteredMovies.map((item) => (
+                <MovieCard
+                  key={item.id}
+                  item={item}
+                  onHover={() => setHoveredItem(item)}
+                  onHoverEnd={() => setHoveredItem(null)}
+                  onClick={() => onPlayMovie(item.url, item.title)}
+                  isAdmin={isAdmin}
+                  onDelete={() => handleDeleteItem(item)}
+                />
+              ))}
+            </Row>
+          )}
+
+          {/* 🎯 SERIES ROW - Using premium <Row> component with arrows */}
+          {filteredSeries.length > 0 && (
+            <Row title="Series">
+              {filteredSeries.map((item) => (
+                <MovieCard
+                  key={item.id}
+                  item={item}
+                  onHover={() => setHoveredItem(item)}
+                  onHoverEnd={() => setHoveredItem(null)}
+                  onClick={() => setSelectedSeries(item)}
+                  isAdmin={isAdmin}
+                  onDelete={() => handleDeleteItem(item)}
+                />
+              ))}
+            </Row>
+          )}
         </div>
       )}
     </div>
