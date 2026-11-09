@@ -12,6 +12,7 @@ import UserConfigPanel from './components/UserConfigPanel'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { UserProvider } from './context/UserContext'
 import { ContentProvider, useContent } from './context/ContentContext'
+import { UserAuthProvider } from './context/UserAuthContext' // 👈 NUEVO IMPORT AGREGADO
 
 type Section = 'movieseries' | 'deportes' | 'kids' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'chat' | 'settings'
 
@@ -347,13 +348,15 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <UserProvider>
-        <ContentProvider>
-          <AppContent/>
-        </ContentProvider>
-      </UserProvider>
-    </AuthProvider>
+    <UserAuthProvider> {/* 👈 NUEVO WRAPPER AGREGADO AQUÍ */}
+      <AuthProvider>
+        <UserProvider>
+          <ContentProvider>
+            <AppContent/>
+          </ContentProvider>
+        </UserProvider>
+      </AuthProvider>
+    </UserAuthProvider>
   )
 }
 

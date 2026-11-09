@@ -1,10 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 
 interface UserConfig {
-  password: string
-  shareCode: string
-  customChannels: string[]
-  customMovies: string[]
+  password?: string
+  shareCode?: string
 }
 
 interface UserContextType {
@@ -17,107 +15,62 @@ interface UserContextType {
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
-const STORAGE_KEY = 'tunetv_user_config'
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [userConfig, setUserConfig] = useState<UserConfig | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : null
-  })
+  const [userConfig, setUserConfig] = useState<UserConfig | null>(null)
 
   useEffect(() => {
-    if (userConfig) localStorage.setItem(STORAGE_KEY, JSON.stringify(userConfig))
-  }, [userConfig])
+    const saved = localStorage.getItem('tunetv_user_config')
+    if (saved) {
+      setUserConfig(JSON.parse(saved))
+    }
+  }, [])
+
+  const saveConfig = (config: UserConfig) => {
+    setUserConfig(config)
+    localStorage.setItem('tunetv_user_config', JSON.stringify(config))
+  }
 
   const setUserPassword = (password: string) => {
-    const config = userConfig || { password: '', shareCode: '', customChannels: [], customMovies: [] }
-    config.password = password
-    setUserConfig(config)
+    saveConfig({ ...userConfig, password })
   }
 
   const removeUserPassword = () => {
-    if (!userConfig) return
-    setUserConfig({ ...userConfig, password: '' })
+    const newConfig = { ...userConfig }
+    delete newConfig.password
+    saveConfig(newConfig)
   }
 
-  const generateShareCode = async (): Promise<string> => {
-    const contentData = localStorage.getItem('tunetv_content')
-    if (!contentData) {
-      throw new Error('No hay datos para compartir')
-    }
-
-    const content = JSON.parse(contentData)
-    
-    try {
-      // POST al servidor con los datos
-      const response = await fetch('https://onrender.com', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          channels: content.channels || [],
-          movies: content.movies || []
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Error al generar código')
-      }
-
-      const data = await response.json()
-      const code = data.code || data.codigo
-      
-      // Guardar el código en el config del usuario
-      const config = userConfig || { password: '', shareCode: '', customChannels: [], customMovies: [] }
-      config.shareCode = code
-      setUserConfig(config)
-      
-      return code
-    } catch (error) {
-      console.error('Error generando código:', error)
-      throw error
-    }
+  const generateShareCode = (): string => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase()
+    saveConfig({ ...userConfig, shareCode: code })
+    return code
   }
 
   const importFromShareCode = async (code: string): Promise<boolean> => {
-    try {
-      // GET al servidor con el código
-      const response = await fetch(`https://onrender.com/${code}`)
-      
-      if (!response.ok) {
-        return false
+    const saved = localStorage.getItem('tunetv_user_config')
+    if (saved) {
+      const config = JSON.parse(saved)
+      if (config.shareCode === code) {
+        return true
       }
-
-      const data = await response.json()
-      
-      // Importar contenido
-      const existingContent = localStorage.getItem('tunetv_content')
-      let content = existingContent ? JSON.parse(existingContent) : { channels: [], movies: [] }
-      
-      // Fusionar canales (evitar duplicados por URL)
-      const existingUrls = new Set(content.channels.map((c: any) => c.url))
-      const newChannels = (data.channels || []).filter((c: any) => !existingUrls.has(c.url))
-      content.channels = [...content.channels, ...newChannels]
-      
-      // Fusionar películas
-      const existingMovieUrls = new Set(content.movies.map((m: any) => m.url))
-      const newMovies = (data.movies || []).filter((m: any) => !existingMovieUrls.has(m.url))
-      content.movies = [...content.movies, ...newMovies]
-      
-      localStorage.setItem('tunetv_content', JSON.stringify(content))
-      
-      return true
-    } catch (error) {
-      console.error('Error importando código:', error)
-      return false
     }
+    return false
   }
 
-  const canAddContent = (): boolean => userConfig !== null && userConfig.password !== ''
+  const canAddContent = (): boolean => {
+    return !!userConfig?.password
+  }
 
   return (
-    <UserContext.Provider value={{ userConfig, setUserPassword, removeUserPassword, generateShareCode, importFromShareCode, canAddContent }}>
+    <UserContext.Provider value={{ 
+      userConfig, 
+      setUserPassword, 
+      removeUserPassword, 
+      generateShareCode, 
+      importFromShareCode, 
+      canAddContent 
+    }}>
       {children}
     </UserContext.Provider>
   )
