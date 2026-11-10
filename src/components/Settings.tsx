@@ -1,3 +1,4 @@
+// src/components/Settings.tsx
 import { useState } from 'react'
 import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Sparkles, Plus, User as UserIcon, Mail } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -38,10 +39,13 @@ const detectCategory = (name: string, group: string): Category => {
 }
 
 export default function SettingsPanel() {
-  const { isAdmin } = useAuth()
+  const { isAdmin: legacyIsAdmin } = useAuth()
   const { user, login, register, logout: userLogout, deleteAccount, isUserAdmin } = useUserAuth()
   const { importM3U, addChannel, addMovie } = useContent()
   
+  // Combine both admin checks to ensure maximum compatibility
+  const isAdmin = legacyIsAdmin || isUserAdmin
+
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -465,7 +469,7 @@ export default function SettingsPanel() {
               <div>
                 <h3 className="text-xl font-bold text-white">{user?.name || 'Usuario'}</h3>
                 <p className="text-[#808080] text-sm">{user?.email}</p>
-                {isUserAdmin && (
+                {isAdmin && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#E50914]/20 text-[#E50914] text-xs font-bold rounded-full mt-1">
                     <Shield className="w-3 h-3" /> Administrador
                   </span>

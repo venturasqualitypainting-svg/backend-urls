@@ -1,3 +1,4 @@
+// src/context/UserAuthContext.tsx
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -104,7 +105,8 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const isUserAdmin = user?.email === 'admin@tunetv.com'
+  // 🚨 HARDCODED ADMIN EMAIL
+  const isUserAdmin = user?.email === 'mistraviesos@hotmail.com'
 
   return (
     <UserAuthContext.Provider value={{ user, loading, login, register, logout, deleteAccount, isUserAdmin }}>
