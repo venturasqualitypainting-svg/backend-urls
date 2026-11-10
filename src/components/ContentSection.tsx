@@ -1,3 +1,4 @@
+// src/components/ContentSection.tsx
 import { useState, useEffect } from 'react'
 import { Search, CheckSquare, Square, Trash2, Heart, Tv } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -25,7 +26,6 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
   const [favorites, setFavorites] = useState<string[]>([])
   const [showEPG, setShowEPG] = useState(false)
 
-  // Load favorites from localStorage
   useEffect(() => {
     const savedFavorites = localStorage.getItem(`tunetv_favorites_${category}`)
     if (savedFavorites) {
@@ -33,7 +33,6 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
     }
   }, [category])
 
-  // Save favorites to localStorage
   useEffect(() => {
     localStorage.setItem(`tunetv_favorites_${category}`, JSON.stringify(favorites))
   }, [favorites, category])
@@ -148,7 +147,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
               
               {/* 🚨 ADMIN ONLY: Selection and Delete Controls */}
               {isAdmin && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setSelectedItems(new Set(filteredItems.map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
                     <CheckSquare className="w-4 h-4"/>Seleccionar todos
                   </button>

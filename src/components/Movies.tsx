@@ -1,3 +1,4 @@
+// src/components/Movies.tsx
 import { useState, useEffect, useRef } from 'react'
 import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -37,7 +38,7 @@ function MovieCard({
   onHoverEnd: () => void
   onClick: () => void
   isAdmin: boolean
-  onDelete: () => void
+  onDelete?: () => void
 }) {
   const { miLista, toggleMiLista, isInMiLista } = useMiLista()
   const inList = isInMiLista(item.id)
@@ -68,6 +69,17 @@ function MovieCard({
           </div>
         )}
 
+        {/* 🚨 ADMIN DELETE BADGE - Only visible for admin */}
+        {isAdmin && onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="absolute top-2 right-2 w-8 h-8 bg-[#E50914] hover:bg-[#F40612] rounded-full flex items-center justify-center z-20 transition-all shadow-lg"
+            title="Eliminar"
+          >
+            <Trash2 className="w-4 h-4 text-white"/>
+          </button>
+        )}
+
         <div className={`absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent transition-opacity duration-300 flex flex-col justify-end p-3 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
           <h3 className="text-white text-sm font-bold mb-2 line-clamp-2">{item.title}</h3>
           <div className="flex items-center gap-2">
@@ -83,14 +95,6 @@ function MovieCard({
             >
               {inList ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             </button>
-            {isAdmin && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete() }}
-                className="w-8 h-8 rounded-full border-2 border-white/60 flex items-center justify-center text-white hover:border-[#E50914] hover:text-[#E50914] transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -313,30 +317,34 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
               className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
             />
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))}
-              className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
-            >
-              <CheckSquare className="w-4 h-4" /> Seleccionar todos
-            </button>
-            {selectedItems.size > 0 && (
-              <>
-                <button
-                  onClick={() => setSelectedItems(new Set())}
-                  className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
-                >
-                  <Square className="w-4 h-4" /> Deseleccionar
-                </button>
-                <button
-                  onClick={deleteSelected}
-                  className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" /> Eliminar ({selectedItems.size})
-                </button>
-              </>
-            )}
-          </div>
+          
+          {/* 🚨 ADMIN ONLY: Selection and Delete Controls */}
+          {isAdmin && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))}
+                className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
+              >
+                <CheckSquare className="w-4 h-4" /> Seleccionar todos
+              </button>
+              {selectedItems.size > 0 && (
+                <>
+                  <button
+                    onClick={() => setSelectedItems(new Set())}
+                    className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
+                  >
+                    <Square className="w-4 h-4" /> Deseleccionar
+                  </button>
+                  <button
+                    onClick={deleteSelected}
+                    className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" /> Eliminar ({selectedItems.size})
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
