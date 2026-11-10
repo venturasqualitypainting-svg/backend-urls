@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import { Search, CheckSquare, Square, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, CheckSquare, Square, Trash2, Heart } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContent } from '../context/ContentContext'
-import { useMiLista } from '../hooks/useMiLista'
-import Row from './Row'
 import NetflixCard from './NetflixCard'
 import { SkeletonRow } from './Skeleton'
 
@@ -21,9 +19,34 @@ interface ContentSectionProps {
 export default function ContentSection({ onPlay, title, icon: Icon, iconColor, category }: ContentSectionProps) {
   const { isAdmin } = useAuth()
   const { channels, movies, removeChannel, removeMovie } = useContent()
-  const { miLista, toggleMiLista, isInMiLista } = useMiLista()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [favorites, setFavorites] = useState<string[]>([])
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    const savedFavorites = localStorage.getItem(`tunetv_favorites_${category}`)
+    if (savedFavorites) {
+      setFavorites(JSON.parse(savedFavorites))
+    }
+  }, [category])
+
+  // Save favorites to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(`tunetv_favorites_${category}`, JSON.stringify(favorites))
+  }, [favorites, category])
+
+  const toggleFavorite = (id: string) => {
+    setFavorites(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(fid => fid !== id)
+      } else {
+        return [...prev, id]
+      }
+    })
+  }
+
+  const isFavorite = (id: string) => favorites.includes(id)
 
   const categoryChannels = channels.filter(c => c.category === category)
   const categoryMovies = movies.filter(m => m.category === category)
@@ -33,7 +56,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
       id: c.id,
       title: c.name,
       year: new Date().getFullYear(),
-      genre: c.group || 'General',
+      genre: c.group || category,
       rating: 7.5,
       poster: '📺',
       url: c.url,
@@ -54,7 +77,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
   ]
 
   const filteredItems = items.filter(m => m.title.toLowerCase().includes(searchTerm.toLowerCase()))
-  const miListaItems = items.filter(i => miLista.includes(i.id))
+  const favoriteItems = items.filter(i => favorites.includes(i.id))
 
   const toggleItemSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -80,6 +103,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
 
   return (
     <div className="pt-8">
+      {/* Header */}
       <div className="px-4 md:px-12 mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Icon className={`w-8 h-8 ${iconColor}`}/>
@@ -88,6 +112,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
         <p className="text-[#808080] text-sm">{items.length} contenidos disponibles</p>
       </div>
 
+      {/* Search & Admin Actions */}
       <div className="px-4 md:px-12 mb-8">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 max-w-md">
@@ -100,86 +125,38 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
               className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm"
             />
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setSelectedItems(new Set(filteredItems.map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
-              <CheckSquare className="w-4 h-4"/>Seleccionar todos
-            </button>
-            {selectedItems.size > 0 && (
-              <>
-                <button onClick={() => setSelectedItems(new Set())} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
-                  <Square className="w-4 h-4"/>Deseleccionar
-                </button>
-                <button onClick={deleteSelected} className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors">
-                  <Trash2 className="w-4 h-4"/>Eliminar ({selectedItems.size})
-                </button>
-              </>
-            )}
-          </div>
+          
+          {/* 🚨 ADMIN ONLY: Selection and Delete Controls */}
+          {isAdmin && (
+            <div className="flex gap-2">
+              <button onClick={() => setSelectedItems(new Set(filteredItems.map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
+                <CheckSquare className="w-4 h-4"/>Seleccionar todos
+              </button>
+              {selectedItems.size > 0 && (
+                <>
+                  <button onClick={() => setSelectedItems(new Set())} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
+                    <Square className="w-4 h-4"/>Deseleccionar
+                  </button>
+                  <button onClick={deleteSelected} className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors">
+                    <Trash2 className="w-4 h-4"/>Eliminar ({selectedItems.size})
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {miListaItems.length > 0 && (
-        <Row title="Mi Lista">
-          {miListaItems.map((item, index) => (
-            <NetflixCard
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              logo={item.logo}
-              poster={item.poster}
-              url={item.url}
-              group={item.genre}
-              isLive={item.type === 'channel'}
-              onPlay={() => onPlay(item.url, item.title, index)}
-              onToggleMiLista={() => toggleMiLista(item.id)}
-              isInMiLista={isInMiLista(item.id)}
-              isSelected={selectedItems.has(item.id)}
-              onToggleSelection={(e) => toggleItemSelection(item.id, e)}
-              onDelete={isAdmin ? () => {
-                if (item.type === 'channel') removeChannel(item.id)
-                else removeMovie(item.id)
-              } : undefined}
-              index={index}
-            />
-          ))}
-        </Row>
-      )}
-
-      {items.length === 0 ? (
-        <SkeletonRow/>
-      ) : (
-        <Row title={title}>
-          {filteredItems.map((item, index) => (
-            <NetflixCard
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              logo={item.logo}
-              poster={item.poster}
-              url={item.url}
-              group={item.genre}
-              isLive={item.type === 'channel'}
-              onPlay={() => onPlay(item.url, item.title, index)}
-              onToggleMiLista={() => toggleMiLista(item.id)}
-              isInMiLista={isInMiLista(item.id)}
-              isSelected={selectedItems.has(item.id)}
-              onToggleSelection={(e) => toggleItemSelection(item.id, e)}
-              onDelete={isAdmin ? () => {
-                if (item.type === 'channel') removeChannel(item.id)
-                else removeMovie(item.id)
-              } : undefined}
-              index={index}
-            />
-          ))}
-        </Row>
-      )}
-
-      {searchTerm === '' && [...new Set(items.map(i => i.genre).filter(Boolean))].slice(0, 3).map(genre => {
-        const genreItems = items.filter(i => i.genre === genre)
-        if (genreItems.length === 0) return null
-        return (
-          <Row key={genre} title={genre}>
-            {genreItems.map((item, index) => (
+      {/* 🌟 MIS FAVORITOS ROW - Only show if user has favorites */}
+      {favoriteItems.length > 0 && (
+        <div className="px-4 md:px-12 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Heart className="w-6 h-6 text-[#E50914] fill-[#E50914]"/>
+            <h3 className="text-white text-xl font-bold">Mis Favoritos</h3>
+            <span className="text-[#808080] text-sm">({favoriteItems.length})</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+            {favoriteItems.map((item, index) => (
               <NetflixCard
                 key={item.id}
                 id={item.id}
@@ -190,10 +167,11 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                 group={item.genre}
                 isLive={item.type === 'channel'}
                 onPlay={() => onPlay(item.url, item.title, index)}
-                onToggleMiLista={() => toggleMiLista(item.id)}
-                isInMiLista={isInMiLista(item.id)}
+                onToggleFavorite={() => toggleFavorite(item.id)}
+                isFavorite={isFavorite(item.id)}
                 isSelected={selectedItems.has(item.id)}
                 onToggleSelection={(e) => toggleItemSelection(item.id, e)}
+                isAdmin={isAdmin}
                 onDelete={isAdmin ? () => {
                   if (item.type === 'channel') removeChannel(item.id)
                   else removeMovie(item.id)
@@ -201,9 +179,47 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                 index={index}
               />
             ))}
-          </Row>
-        )
-      })}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Grid */}
+      {filteredItems.length === 0 ? (
+        <div className="px-4 md:px-12">
+          <SkeletonRow/>
+        </div>
+      ) : (
+        <div className="px-4 md:px-12">
+          <h3 className="text-white text-xl font-bold mb-4">
+            {searchTerm ? `Resultados para "${searchTerm}"` : title}
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4">
+            {filteredItems.map((item, index) => (
+              <NetflixCard
+                key={item.id}
+                id={item.id}
+                title={item.title}
+                logo={item.logo}
+                poster={item.poster}
+                url={item.url}
+                group={item.genre}
+                isLive={item.type === 'channel'}
+                onPlay={() => onPlay(item.url, item.title, index)}
+                onToggleFavorite={() => toggleFavorite(item.id)}
+                isFavorite={isFavorite(item.id)}
+                isSelected={selectedItems.has(item.id)}
+                onToggleSelection={(e) => toggleItemSelection(item.id, e)}
+                isAdmin={isAdmin}
+                onDelete={isAdmin ? () => {
+                  if (item.type === 'channel') removeChannel(item.id)
+                  else removeMovie(item.id)
+                } : undefined}
+                index={index}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
