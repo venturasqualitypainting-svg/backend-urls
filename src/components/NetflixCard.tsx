@@ -1,3 +1,4 @@
+// src/components/NetflixCard.tsx
 import { useState } from 'react'
 import { Play, Plus, Check, Heart, Trash2, Info } from 'lucide-react'
 
@@ -42,20 +43,22 @@ export default function NetflixCard({
 
   return (
     <div
-      className="relative flex-none w-full aspect-[2/3] rounded-md overflow-hidden bg-[#2F2F2F] shadow-lg cursor-pointer group transition-transform duration-300 hover:scale-105 hover:z-20"
+      className="relative flex-none w-full aspect-[2/3] rounded-md overflow-hidden bg-[#1a1a1a] shadow-lg cursor-pointer group transition-transform duration-300 hover:scale-105 hover:z-20"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onPlay}
     >
-      {/* Image */}
-      <img
-        src={displayImage}
-        alt={title}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          e.currentTarget.src = 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=500&auto=format&fit=crop'
-        }}
-      />
+      {/* Image - object-contain para no cortar logos */}
+      <div className="w-full h-full bg-[#1a1a1a] flex items-center justify-center p-2">
+        <img
+          src={displayImage}
+          alt={title}
+          className="max-w-full max-h-full object-contain"
+          onError={(e) => {
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=500&auto=format&fit=crop'
+          }}
+        />
+      </div>
 
       {/* Live Badge */}
       {isLive && (
