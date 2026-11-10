@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Sparkles, Plus } from 'lucide-react'
+import { Settings, Lock, LogOut, Shield, Eye, EyeOff, Key, AlertCircle, CheckCircle, Upload, Baby, Trophy, Film, BookOpen, Crown, X, Copy, Trash2, Save, Sparkles, Plus, User as UserIcon, Mail } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useContent } from '../context/ContentContext'
+import { useUserAuth } from '../context/UserAuthContext'
 
 interface StreamCheck {
   url: string
@@ -37,13 +38,17 @@ const detectCategory = (name: string, group: string): Category => {
 }
 
 export default function SettingsPanel() {
-  const { isAdmin, login, logout } = useAuth()
+  const { isAdmin } = useAuth()
+  const { user, login, register, logout: userLogout, deleteAccount, isUserAdmin } = useUserAuth()
   const { importM3U, addChannel, addMovie } = useContent()
   
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [isAuthLoading, setIsAuthLoading] = useState(false)
 
   const [categoryUrls, setCategoryUrls] = useState<Record<Category, string>>({
     movies: '', kids: '', deportes: '', entretenimiento: '', historia: '', premium: '', cineclasico: ''
@@ -68,20 +73,38 @@ export default function SettingsPanel() {
   const [episodes, setEpisodes] = useState<{ title: string, url: string }[]>([{ title: 'Episodio 1', url: '' }])
   const [isAddingMovie, setIsAddingMovie] = useState(false)
 
-  const handleLogin = () => {
-    setError('')
-    setSuccess('')
-    if (login(password)) {
-      setSuccess('¡Bienvenido Administrador!')
-      setPassword('')
-    } else {
-      setError('Contraseña incorrecta')
-    }
-  }
+  const [success, setSuccess] = useState('')
+  const [error, setError] = useState('')
 
-  const handleLogout = () => {
-    logout()
-    setSuccess('Sesión cerrada')
+  const handleUserAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError('')
+    setIsAuthLoading(true)
+
+    if (authMode === 'login') {
+      const result = await login(email, password)
+      if (!result.success) {
+        setAuthError(result.error || 'Error al iniciar sesión')
+      } else {
+        setEmail('')
+        setPassword('')
+      }
+    } else {
+      if (!name.trim()) {
+        setAuthError('El nombre es obligatorio')
+        setIsAuthLoading(false)
+        return
+      }
+      const result = await register(email, password, name)
+      if (!result.success) {
+        setAuthError(result.error || 'Error al crear la cuenta')
+      } else {
+        setEmail('')
+        setPassword('')
+        setName('')
+      }
+    }
+    setIsAuthLoading(false)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -319,287 +342,401 @@ export default function SettingsPanel() {
           <Settings className="w-8 h-8 text-[#E50914]"/>
           <h2 className="text-3xl md:text-4xl font-bold text-white">Configuración</h2>
         </div>
-        <p className="text-[#808080] text-sm">Panel de administración</p>
+        <p className="text-[#808080] text-sm">Panel de administración y cuenta de usuario</p>
       </div>
 
-      <div className="bg-[#1F1F1F] border border-[#2F2F2F] rounded-md p-6 md:p-8">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-14 h-14 bg-gradient-to-br from-[#E50914]/20 to-[#B00710]/20 rounded-lg flex items-center justify-center border border-[#E50914]/30">
-            <Shield className="w-7 h-7 text-[#E50914]"/>
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white">Panel de Administrador</h3>
-            <p className="text-[#808080] text-sm">{isAdmin ? 'Tienes acceso completo' : 'Ingresa la contraseña'}</p>
-          </div>
-        </div>
-
-        {!isAdmin ? (
-          <div className="space-y-4 max-w-md">
-            <div className="space-y-2">
-              <label className="text-sm text-[#808080] flex items-center gap-2"><Key className="w-4 h-4"/>Contraseña de Administrador</label>
-              <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => { setPassword(e.target.value); setError('') }} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} placeholder="Ingresa la contraseña..." className="w-full px-4 py-3 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white pr-12"/>
-                <button onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#808080]">{showPassword ? <EyeOff className="w-5 h-5"/> : <Eye className="w-5 h-5"/>}</button>
+      {!user ? (
+        <div className="max-w-md mx-auto">
+          <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-8">
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-16 h-16 bg-[#E50914] rounded-full flex items-center justify-center">
+                <UserIcon className="w-8 h-8 text-white" />
               </div>
             </div>
-            {error && <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3"><AlertCircle className="w-4 h-4"/>{error}</div>}
-            <button onClick={handleLogin} disabled={!password} className="w-full py-3 bg-[#E50914] text-white rounded-md font-medium hover:bg-[#F40612] disabled:opacity-50 flex items-center justify-center gap-2"><Lock className="w-4 h-4"/>Acceder como Administrador</button>
-            <div className="bg-[#2F2F2F] border border-[#3F3F3F] rounded-md p-4">
-              <p className="text-xs text-[#808080] flex items-center gap-2"><AlertCircle className="w-3 h-3"/>Contraseña demo: <code className="text-[#E50914] bg-[#E50914]/10 px-1.5 py-0.5 rounded font-mono">tunetv2026</code></p>
+            <h3 className="text-2xl font-bold text-white text-center mb-2">
+              {authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            </h3>
+            <p className="text-[#808080] text-center text-sm mb-6">
+              {authMode === 'login' 
+                ? 'Accede para gestionar tu programación y disfrutar de todas las funciones.' 
+                : 'Regístrate para crear y compartir tu propia programación.'}
+            </p>
+
+            <form onSubmit={handleUserAuth} className="space-y-4">
+              {authMode === 'register' && (
+                <div className="space-y-1">
+                  <label className="text-xs text-[#808080] flex items-center gap-2">
+                    <UserIcon className="w-4 h-4" /> Nombre
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Tu nombre completo"
+                    className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none transition-colors"
+                    required={authMode === 'register'}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080] flex items-center gap-2">
+                  <Mail className="w-4 h-4" /> Correo Electrónico
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080] flex items-center gap-2">
+                  <Lock className="w-4 h-4" /> Contraseña
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none transition-colors pr-12"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#808080] hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {authError && (
+                <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isAuthLoading}
+                className="w-full py-3 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isAuthLoading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(authMode === 'login' ? 'register' : 'login')
+                  setAuthError('')
+                  setEmail('')
+                  setPassword('')
+                  setName('')
+                }}
+                className="text-[#808080] hover:text-white text-sm transition-colors"
+              >
+                {authMode === 'login' ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="space-y-8">
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 rounded-md p-3">
-              <CheckCircle className="w-4 h-4 text-green-400"/>
-              <span className="text-green-400 text-sm font-medium">Autenticado como Administrador</span>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {/* 🚨 USER PROFILE HEADER WITH LOGOUT & DELETE ACCOUNT */}
+          <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-[#E50914] to-[#B00710] rounded-full flex items-center justify-center text-white font-bold text-xl">
+                {user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">{user?.name || 'Usuario'}</h3>
+                <p className="text-[#808080] text-sm">{user?.email}</p>
+                {isUserAdmin && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#E50914]/20 text-[#E50914] text-xs font-bold rounded-full mt-1">
+                    <Shield className="w-3 h-3" /> Administrador
+                  </span>
+                )}
+              </div>
             </div>
-            {success && <div className="flex items-center gap-2 text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-md p-3"><CheckCircle className="w-4 h-4"/>{success}</div>}
-            {error && <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3"><AlertCircle className="w-4 h-4"/>{error}</div>}
+            <div className="flex gap-3 w-full md:w-auto">
+              <button
+                onClick={userLogout}
+                className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-[#2F2F2F] hover:bg-[#444444] text-white rounded-md text-sm font-medium transition-colors flex"
+              >
+                <LogOut className="w-4 h-4" /> Cerrar Sesión
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirm('⚠️ ¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer y se borrarán todos tus datos.')) {
+                    const result = await deleteAccount()
+                    if (result.success) {
+                      alert('Cuenta eliminada exitosamente')
+                    } else {
+                      alert('Error al eliminar la cuenta: ' + result.error)
+                    }
+                  }
+                }}
+                className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md text-sm font-medium transition-colors flex"
+              >
+                <Trash2 className="w-4 h-4" /> Eliminar Cuenta
+              </button>
+            </div>
+          </div>
 
-            {/* --- MOVIE/SERIES UPLOAD FORM --- */}
-            <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-6">
-              <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-4">
-                <Film className="w-5 h-5 text-[#E50914]"/>Agregar Película o Serie
-              </h4>
-              <form onSubmit={handleAddMovie} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Título *</label>
-                  <input required type="text" value={newMovie.title} onChange={e => setNewMovie({...newMovie, title: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="Ej: Gold Rush" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Categoría Principal</label>
-                  <select value={newMovie.category} onChange={e => setNewMovie({...newMovie, category: e.target.value as Category})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Género / Tipo (Define la fila)</label>
-                  <select value={newMovie.genre} onChange={e => setNewMovie({...newMovie, genre: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
-                    <option value="Movies">Movies</option>
-                    <option value="Series">Series</option>
-                    <option value="Documental">Documental</option>
-                    <option value="Anime">Anime</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-[#808080]">Calificación (1.0 - 10.0)</label>
-                  <input type="number" step="0.1" min="1" max="10" value={newMovie.rating} onChange={e => setNewMovie({...newMovie, rating: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="7.5" />
-                </div>
+          {success && <div className="flex items-center gap-2 text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-md p-3"><CheckCircle className="w-4 h-4"/>{success}</div>}
+          {error && <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3"><AlertCircle className="w-4 h-4"/>{error}</div>}
 
-                {/* DYNAMIC EPISODES FOR SERIES */}
-                {newMovie.genre === 'Series' ? (
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs text-[#808080]">Episodios (Agrega al menos uno)</label>
-                    {episodes.map((ep, idx) => (
-                      <div key={idx} className="flex gap-2 mb-2">
-                        <input 
-                          placeholder="Título del episodio (Ej: T1:E1)" 
-                          value={ep.title} 
-                          onChange={e => {
-                            const newEps = [...episodes]
-                            newEps[idx].title = e.target.value
-                            setEpisodes(newEps)
-                          }}
-                          className="flex-1 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
-                        />
-                        <input 
-                          placeholder="URL del stream (.m3u8)" 
-                          value={ep.url} 
-                          onChange={e => {
-                            const newEps = [...episodes]
-                            newEps[idx].url = e.target.value
-                            setEpisodes(newEps)
-                          }}
-                          className="flex-[2] px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
-                        />
-                        {episodes.length > 1 && (
-                          <button type="button" onClick={() => setEpisodes(episodes.filter((_, i) => i !== idx))} className="p-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] transition-colors"><Trash2 className="w-4 h-4" /></button>
-                        )}
-                      </div>
-                    ))}
-                    <button type="button" onClick={() => setEpisodes([...episodes, { title: `Episodio ${episodes.length + 1}`, url: '' }])} className="text-[#E50914] text-sm flex items-center gap-1 hover:underline mt-1">
-                      <Plus className="w-4 h-4" /> Agregar otro episodio
-                    </button>
+          {/* --- MOVIE/SERIES UPLOAD FORM --- */}
+          <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-6">
+            <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-4">
+              <Film className="w-5 h-5 text-[#E50914]"/>Agregar Película o Serie
+            </h4>
+            <form onSubmit={handleAddMovie} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080]">Título *</label>
+                <input required type="text" value={newMovie.title} onChange={e => setNewMovie({...newMovie, title: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="Ej: Gold Rush" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080]">Categoría Principal</label>
+                <select value={newMovie.category} onChange={e => setNewMovie({...newMovie, category: e.target.value as Category})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080]">Género / Tipo (Define la fila)</label>
+                <select value={newMovie.genre} onChange={e => setNewMovie({...newMovie, genre: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none">
+                  <option value="Movies">Movies</option>
+                  <option value="Series">Series</option>
+                  <option value="Documental">Documental</option>
+                  <option value="Anime">Anime</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[#808080]">Calificación (1.0 - 10.0)</label>
+                <input type="number" step="0.1" min="1" max="10" value={newMovie.rating} onChange={e => setNewMovie({...newMovie, rating: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="7.5" />
+              </div>
+
+              {newMovie.genre === 'Series' ? (
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs text-[#808080]">Episodios (Agrega al menos uno)</label>
+                  {episodes.map((ep, idx) => (
+                    <div key={idx} className="flex gap-2 mb-2">
+                      <input 
+                        placeholder="Título del episodio (Ej: T1:E1)" 
+                        value={ep.title} 
+                        onChange={e => {
+                          const newEps = [...episodes]
+                          newEps[idx].title = e.target.value
+                          setEpisodes(newEps)
+                        }}
+                        className="flex-1 px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
+                      />
+                      <input 
+                        placeholder="URL del stream (.m3u8)" 
+                        value={ep.url} 
+                        onChange={e => {
+                          const newEps = [...episodes]
+                          newEps[idx].url = e.target.value
+                          setEpisodes(newEps)
+                        }}
+                        className="flex-[2] px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
+                      />
+                      {episodes.length > 1 && (
+                        <button type="button" onClick={() => setEpisodes(episodes.filter((_, i) => i !== idx))} className="p-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setEpisodes([...episodes, { title: `Episodio ${episodes.length + 1}`, url: '' }])} className="text-[#E50914] text-sm flex items-center gap-1 hover:underline mt-1">
+                    <Plus className="w-4 h-4" /> Agregar otro episodio
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs text-[#808080]">URL del Stream (.m3u8) *</label>
+                  <input required type="url" value={newMovie.url} onChange={e => setNewMovie({...newMovie, url: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="https://ejemplo.com/stream.m3u8" />
+                </div>
+              )}
+
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-xs text-[#808080]">Poster (Imagen)</label>
+                <div className="flex items-start gap-4">
+                  <label 
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    className="flex-1 cursor-pointer border-2 border-dashed border-[#3F3F3F] hover:border-[#E50914] rounded-md p-6 flex flex-col items-center justify-center transition-colors bg-[#2F2F2F]"
+                  >
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                    <Upload className="w-8 h-8 text-[#808080] mb-2" />
+                    <span className="text-xs text-[#808080] text-center">Arrastra una imagen o haz clic para subir</span>
+                  </label>
+                  {newMovie.poster && (
+                    <div className="relative w-24 h-36 rounded-md overflow-hidden bg-black border border-[#3F3F3F] flex-shrink-0">
+                      <img src={newMovie.poster} alt="Preview" className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => setNewMovie({ ...newMovie, poster: '' })} className="absolute top-1 right-1 bg-[#E50914] text-white rounded-full p-1 hover:bg-[#F40612] transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-xs text-[#808080]">Sinopsis / Descripción</label>
+                <textarea value={newMovie.description} onChange={e => setNewMovie({...newMovie, description: e.target.value})} rows={3} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none resize-none" placeholder="Breve descripción..." />
+              </div>
+              <div className="md:col-span-2">
+                <button type="submit" disabled={isAddingMovie} className="w-full py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                  {isAddingMovie ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando...</> : <><Plus className="w-4 h-4"/>Agregar al Catálogo</>}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* --- M3U IMPORT & STREAM CHECKER --- */}
+          <div className="space-y-4">
+            <h4 className="text-white font-bold text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-[#E50914]"/>Importar Contenido por Categoría (M3U)</h4>
+            <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U</p>
+            {categories.map((category) => {
+              const Icon = category.icon
+              const isImporting = importingCategory === category.id
+              return (
+                <div key={category.id} className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-[#E50914]/10 rounded-md flex items-center justify-center"><Icon className="w-5 h-5 text-[#E50914]"/></div>
+                    <div><h5 className="text-white font-medium">{category.name}</h5></div>
                   </div>
-                ) : (
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs text-[#808080]">URL del Stream (.m3u8) *</label>
-                    <input required type="url" value={newMovie.url} onChange={e => setNewMovie({...newMovie, url: e.target.value})} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" placeholder="https://ejemplo.com/stream.m3u8" />
+                  <textarea value={categoryUrls[category.id]} onChange={(e) => setCategoryUrls({ ...categoryUrls, [category.id]: e.target.value })} placeholder="Pega aquí la URL de la lista M3U o el contenido..." rows={4} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
+                  <button onClick={() => handleImportCategory(category.id)} disabled={!categoryUrls[category.id].trim() || isImporting} className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {isImporting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Importando...</> : <><Upload className="w-4 h-4"/>Importar en {category.name}</>}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
+            <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3"><CheckCircle className="w-5 h-5 text-green-400"/>Verificador de Streams con Detección Automática</h4>
+            <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3 mb-3">
+              <p className="text-white text-xs font-medium mb-1">📋 Instrucciones:</p>
+              <ol className="text-[#808080] text-xs space-y-1 list-decimal list-inside">
+                <li>Pega tus URLs o lista M3U abajo</li>
+                <li>Haz clic en "Verificar Streams"</li>
+                <li>El sistema detectará automáticamente la categoría de cada canal</li>
+                <li>Haz clic en "Guardar Streams Funcionales" y se guardarán en su categoría correcta</li>
+              </ol>
+            </div>
+            <textarea value={checkList} onChange={(e) => setCheckList(e.target.value)} placeholder="Pega URLs para verificar (una por línea)..." rows={5} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
+            <button onClick={handleCheckStreams} disabled={!checkList.trim() || isChecking} className="w-full py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 mb-4">
+              {isChecking ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Verificando...</> : <><CheckCircle className="w-4 h-4"/>Verificar Streams</>}
+            </button>
+
+            {checkResults.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h5 className="text-white text-sm font-medium">Resultados:</h5>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-green-400">✓ {onlineStreams.length} online</span>
+                    <span className="text-[#E50914]">✗ {checkResults.filter(r => r.status === 'offline').length} offline</span>
+                  </div>
+                </div>
+
+                {onlineStreams.length > 0 && Object.keys(categoryCount).length > 0 && (
+                  <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-md p-3">
+                    <p className="text-white text-xs font-bold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(categoryCount).map(([catId, count]) => {
+                        const cat = categories.find(c => c.id === catId)
+                        const CatIcon = cat?.icon || Film
+                        return (
+                          <div key={catId} className="flex items-center gap-1.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md px-2 py-1">
+                            <CatIcon className="w-3.5 h-3.5 text-[#E50914]"/>
+                            <span className="text-white text-xs font-medium">{count}</span>
+                            <span className="text-[#808080] text-xs">en {cat?.name || catId}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
 
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs text-[#808080]">Poster (Imagen)</label>
-                  <div className="flex items-start gap-4">
-                    <label 
-                      onDrop={handleDrop}
-                      onDragOver={handleDragOver}
-                      className="flex-1 cursor-pointer border-2 border-dashed border-[#3F3F3F] hover:border-[#E50914] rounded-md p-6 flex flex-col items-center justify-center transition-colors bg-[#2F2F2F]"
-                    >
-                      <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                      <Upload className="w-8 h-8 text-[#808080] mb-2" />
-                      <span className="text-xs text-[#808080] text-center">Arrastra una imagen o haz clic para subir</span>
-                    </label>
-                    {newMovie.poster && (
-                      <div className="relative w-24 h-36 rounded-md overflow-hidden bg-black border border-[#3F3F3F] flex-shrink-0">
-                        <img src={newMovie.poster} alt="Preview" className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setNewMovie({ ...newMovie, poster: '' })} className="absolute top-1 right-1 bg-[#E50914] text-white rounded-full p-1 hover:bg-[#F40612] transition-colors">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs text-[#808080]">Sinopsis / Descripción</label>
-                  <textarea value={newMovie.description} onChange={e => setNewMovie({...newMovie, description: e.target.value})} rows={3} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none resize-none" placeholder="Breve descripción..." />
-                </div>
-                <div className="md:col-span-2">
-                  <button type="submit" disabled={isAddingMovie} className="w-full py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
-                    {isAddingMovie ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando...</> : <><Plus className="w-4 h-4"/>Agregar al Catálogo</>}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* --- REST OF SETTINGS (M3U Import & Stream Checker) --- */}
-            <div className="space-y-4">
-              <h4 className="text-white font-bold text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-[#E50914]"/>Importar Contenido por Categoría (M3U)</h4>
-              <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U</p>
-              {categories.map((category) => {
-                const Icon = category.icon
-                const isImporting = importingCategory === category.id
-                return (
-                  <div key={category.id} className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-[#E50914]/10 rounded-md flex items-center justify-center"><Icon className="w-5 h-5 text-[#E50914]"/></div>
-                      <div><h5 className="text-white font-medium">{category.name}</h5></div>
+                <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={autoDetect} onChange={(e) => setAutoDetect(e.target.checked)} className="w-4 h-4 accent-[#E50914]"/>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías</p>
+                      <p className="text-[#808080] text-xs">Cada canal se guardará en la categoría que le corresponda según su nombre</p>
                     </div>
-                    <textarea value={categoryUrls[category.id]} onChange={(e) => setCategoryUrls({ ...categoryUrls, [category.id]: e.target.value })} placeholder="Pega aquí la URL de la lista M3U o el contenido..." rows={4} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
-                    <button onClick={() => handleImportCategory(category.id)} disabled={!categoryUrls[category.id].trim() || isImporting} className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50 flex items-center justify-center gap-2">
-                      {isImporting ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Importando...</> : <><Upload className="w-4 h-4"/>Importar en {category.name}</>}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
-              <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3"><CheckCircle className="w-5 h-5 text-green-400"/>Verificador de Streams con Detección Automática</h4>
-              <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3 mb-3">
-                <p className="text-white text-xs font-medium mb-1">📋 Instrucciones:</p>
-                <ol className="text-[#808080] text-xs space-y-1 list-decimal list-inside">
-                  <li>Pega tus URLs o lista M3U abajo</li>
-                  <li>Haz clic en "Verificar Streams"</li>
-                  <li>El sistema detectará automáticamente la categoría de cada canal</li>
-                  <li>Haz clic en "Guardar Streams Funcionales" y se guardarán en su categoría correcta</li>
-                </ol>
-              </div>
-              <textarea value={checkList} onChange={(e) => setCheckList(e.target.value)} placeholder="Pega URLs para verificar (una por línea)..." rows={5} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
-              <button onClick={handleCheckStreams} disabled={!checkList.trim() || isChecking} className="w-full py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 mb-4">
-                {isChecking ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Verificando...</> : <><CheckCircle className="w-4 h-4"/>Verificar Streams</>}
-              </button>
-
-              {checkResults.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h5 className="text-white text-sm font-medium">Resultados:</h5>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-green-400">✓ {onlineStreams.length} online</span>
-                      <span className="text-[#E50914]">✗ {checkResults.filter(r => r.status === 'offline').length} offline</span>
-                    </div>
-                  </div>
-
-                  {onlineStreams.length > 0 && Object.keys(categoryCount).length > 0 && (
-                    <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-md p-3">
-                      <p className="text-white text-xs font-bold mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(categoryCount).map(([catId, count]) => {
-                          const cat = categories.find(c => c.id === catId)
-                          const CatIcon = cat?.icon || Film
-                          return (
-                            <div key={catId} className="flex items-center gap-1.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md px-2 py-1">
-                              <CatIcon className="w-3.5 h-3.5 text-[#E50914]"/>
-                              <span className="text-white text-xs font-medium">{count}</span>
-                              <span className="text-[#808080] text-xs">en {cat?.name || catId}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
+                  </label>
+                  {!autoDetect && (
+                    <div className="mt-3 pt-3 border-t border-[#3F3F3F]">
+                      <label className="text-white text-xs font-medium mb-2 block">Guardar TODO en categoría:</label>
+                      <select value={checkTargetCategory} onChange={(e) => setCheckTargetCategory(e.target.value as Category)} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:outline-none focus:border-[#E50914]">
+                        {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                      </select>
                     </div>
                   )}
+                </div>
 
-                  <div className="bg-[#1F1F1F] border border-[#3F3F3F] rounded-md p-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input type="checkbox" checked={autoDetect} onChange={(e) => setAutoDetect(e.target.checked)} className="w-4 h-4 accent-[#E50914]"/>
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías</p>
-                        <p className="text-[#808080] text-xs">Cada canal se guardará en la categoría que le corresponda según su nombre</p>
-                      </div>
-                    </label>
-                    {!autoDetect && (
-                      <div className="mt-3 pt-3 border-t border-[#3F3F3F]">
-                        <label className="text-white text-xs font-medium mb-2 block">Guardar TODO en categoría:</label>
-                        <select value={checkTargetCategory} onChange={(e) => setCheckTargetCategory(e.target.value as Category)} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:outline-none focus:border-[#E50914]">
-                          {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-
-                  {checkResults.map((result, index) => {
-                    const detectedCat = categories.find(c => c.id === result.detectedCategory)
-                    const DetectedIcon = detectedCat?.icon || Film
-                    return (
-                      <div key={index} className="flex items-center gap-3 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md p-3">
-                        {result.status === 'checking' && <div className="w-5 h-5 border-2 border-[#00D4FF] border-t-transparent rounded-full animate-spin"/>}
-                        {result.status === 'online' && <CheckCircle className="w-5 h-5 text-green-400"/>}
-                        {result.status === 'offline' && <X className="w-5 h-5 text-[#E50914]"/>}
-                        {result.logo ? (
-                          <img src={result.logo} alt={result.name} className="w-12 h-12 object-contain rounded bg-[#1a1a1a] p-1" onError={(e) => { e.currentTarget.style.display = 'none' }}/>
-                        ) : (
-                          <div className="w-12 h-12 bg-gradient-to-br from-[#E50914]/30 to-[#B00710]/30 rounded flex items-center justify-center">
-                            <span className="text-white text-xs font-bold text-center px-1 leading-tight">{result.name.substring(0, 12)}</span>
-                          </div>
+                {checkResults.map((result, index) => {
+                  const detectedCat = categories.find(c => c.id === result.detectedCategory)
+                  const DetectedIcon = detectedCat?.icon || Film
+                  return (
+                    <div key={index} className="flex items-center gap-3 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md p-3">
+                      {result.status === 'checking' && <div className="w-5 h-5 border-2 border-[#00D4FF] border-t-transparent rounded-full animate-spin"/>}
+                      {result.status === 'online' && <CheckCircle className="w-5 h-5 text-green-400"/>}
+                      {result.status === 'offline' && <X className="w-5 h-5 text-[#E50914]"/>}
+                      {result.logo ? (
+                        <img src={result.logo} alt={result.name} className="w-12 h-12 object-contain rounded bg-[#1a1a1a] p-1" onError={(e) => { e.currentTarget.style.display = 'none' }}/>
+                      ) : (
+                        <div className="w-12 h-12 bg-gradient-to-br from-[#E50914]/30 to-[#B00710]/30 rounded flex items-center justify-center">
+                          <span className="text-white text-xs font-bold text-center px-1 leading-tight">{result.name.substring(0, 12)}</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{result.name}</p>
+                        {result.group && <p className="text-[#808080] text-xs truncate">Grupo: {result.group}</p>}
+                        {result.status === 'online' && detectedCat && (
+                          <p className="text-xs text-purple-400 flex items-center gap-1 mt-0.5">
+                            <DetectedIcon className="w-3 h-3"/>→ {detectedCat.name}
+                          </p>
                         )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium truncate">{result.name}</p>
-                          {result.group && <p className="text-[#808080] text-xs truncate">Grupo: {result.group}</p>}
-                          {result.status === 'online' && detectedCat && (
-                            <p className="text-xs text-purple-400 flex items-center gap-1 mt-0.5">
-                              <DetectedIcon className="w-3 h-3"/>→ {detectedCat.name}
-                            </p>
-                          )}
-                          <p className="text-[#808080] text-xs truncate">{result.url}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {result.status === 'online' && (
-                            <button onClick={() => handleCopyUrl(result.url)} className="p-1.5 bg-[#3F3F3F] hover:bg-[#4F4F4F] rounded" title="Copiar URL"><Copy className="w-3.5 h-3.5 text-white"/></button>
-                          )}
-                          {result.status === 'offline' && (
-                            <button onClick={() => handleRemoveOfflineUrl(result.url)} className="p-1.5 bg-[#E50914]/20 hover:bg-[#E50914]/40 rounded" title="Eliminar"><Trash2 className="w-3.5 h-3.5 text-[#E50914]"/></button>
-                          )}
-                        </div>
+                        <p className="text-[#808080] text-xs truncate">{result.url}</p>
                       </div>
-                    )
-                  })}
+                      <div className="flex items-center gap-2">
+                        {result.status === 'online' && (
+                          <button onClick={() => handleCopyUrl(result.url)} className="p-1.5 bg-[#3F3F3F] hover:bg-[#4F4F4F] rounded" title="Copiar URL"><Copy className="w-3.5 h-3.5 text-white"/></button>
+                        )}
+                        {result.status === 'offline' && (
+                          <button onClick={() => handleRemoveOfflineUrl(result.url)} className="p-1.5 bg-[#E50914]/20 hover:bg-[#E50914]/40 rounded" title="Eliminar"><Trash2 className="w-3.5 h-3.5 text-[#E50914]"/></button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
 
-                  {onlineStreams.length > 0 && !isChecking && (
-                    <button onClick={handleSaveWorkingStreams} disabled={isChecking} className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-md font-medium flex items-center justify-center gap-2 disabled:opacity-70">
-                      {isChecking ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando en sus categorías...</> : <><Save className="w-5 h-5"/>Guardar {onlineStreams.length} Streams en sus Categorías Correctas</>}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <button onClick={handleLogout} className="w-full py-3 bg-[#2F2F2F] text-[#E50914] border border-[#E50914]/30 rounded-md font-medium hover:bg-[#E50914]/10 flex items-center justify-center gap-2">
-              <LogOut className="w-4 h-4"/>Cerrar Sesión de Admin
-            </button>
+                {onlineStreams.length > 0 && !isChecking && (
+                  <button onClick={handleSaveWorkingStreams} disabled={isChecking} className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-md font-medium flex items-center justify-center gap-2 disabled:opacity-70">
+                    {isChecking ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando en sus categorías...</> : <><Save className="w-5 h-5"/>Guardar {onlineStreams.length} Streams en sus Categorías Correctas</>}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

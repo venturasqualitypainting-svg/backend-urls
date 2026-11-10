@@ -13,6 +13,7 @@ interface UserAuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>
   logout: () => void
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>
   isUserAdmin: boolean
 }
 
@@ -88,11 +89,25 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('tunetv_user')
   }
 
-  // El admin especial (dueño de la plataforma)
+  const deleteAccount = async () => {
+    if (!user) return { success: false, error: 'No hay usuario logueado' }
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', user.id)
+      if (error) {
+        return { success: false, error: 'Error al eliminar la cuenta' }
+      }
+      logout()
+      return { success: true }
+    } catch (err) {
+      console.error('Error al eliminar cuenta:', err)
+      return { success: false, error: 'Error de conexión' }
+    }
+  }
+
   const isUserAdmin = user?.email === 'admin@tunetv.com'
 
   return (
-    <UserAuthContext.Provider value={{ user, loading, login, register, logout, isUserAdmin }}>
+    <UserAuthContext.Provider value={{ user, loading, login, register, logout, deleteAccount, isUserAdmin }}>
       {children}
     </UserAuthContext.Provider>
   )

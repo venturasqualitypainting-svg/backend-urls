@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Trophy, MessageCircle, Menu, X, Settings, Baby, BookOpen, Crown, Clapperboard, Search, Bell, User, Share2 } from 'lucide-react'
+import { Film, Trophy, MessageCircle, Menu, X, Settings, Baby, BookOpen, Crown, Clapperboard, Search, Bell, User, Share2, Loader2 } from 'lucide-react'
 import Movies from './components/Movies'
 import ChatRoom from './components/ChatRoom'
 import VideoPlayer from './components/VideoPlayer'
@@ -12,11 +12,142 @@ import UserConfigPanel from './components/UserConfigPanel'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { UserProvider } from './context/UserContext'
 import { ContentProvider, useContent } from './context/ContentContext'
-import { UserAuthProvider } from './context/UserAuthContext' // 👈 NUEVO IMPORT AGREGADO
+import { UserAuthProvider, useUserAuth } from './context/UserAuthContext'
 
 type Section = 'movieseries' | 'deportes' | 'kids' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'chat' | 'settings'
 
+// ==========================================
+// AUTH WALL COMPONENT (Blocks app until login)
+// ==========================================
+function AuthWall() {
+  const { login, register } = useUserAuth()
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [authError, setAuthError] = useState('')
+  const [isAuthLoading, setIsAuthLoading] = useState(false)
+
+  const handleUserAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError('')
+    setIsAuthLoading(true)
+
+    if (authMode === 'login') {
+      const result = await login(email, password)
+      if (!result.success) setAuthError(result.error || 'Error al iniciar sesión')
+    } else {
+      if (!name.trim()) {
+        setAuthError('El nombre es obligatorio')
+        setIsAuthLoading(false)
+        return
+      }
+      const result = await register(email, password, name)
+      if (!result.success) setAuthError(result.error || 'Error al crear la cuenta')
+    }
+    setIsAuthLoading(false)
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-center mb-6">
+        <div className="w-16 h-16 bg-[#E50914] rounded-full flex items-center justify-center">
+          <User className="w-8 h-8 text-white" />
+        </div>
+      </div>
+      <h3 className="text-2xl font-bold text-white text-center mb-2">
+        {authMode === 'login' ? 'Bienvenido a TuneTV' : 'Crear Cuenta'}
+      </h3>
+      <p className="text-[#808080] text-center text-sm mb-6">
+        {authMode === 'login' 
+          ? 'Inicia sesión para acceder a tu programación.' 
+          : 'Regístrate para crear y compartir tu propia programación.'}
+      </p>
+
+      <form onSubmit={handleUserAuth} className="space-y-4">
+        {authMode === 'register' && (
+          <div className="space-y-1">
+            <label className="text-xs text-[#808080]">Nombre</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Tu nombre completo"
+              className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none"
+              required={authMode === 'register'}
+            />
+          </div>
+        )}
+        <div className="space-y-1">
+          <label className="text-xs text-[#808080]">Correo Electrónico</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@email.com"
+            className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none"
+            required
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-[#808080]">Contraseña</label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none pr-12"
+              required
+              minLength={6}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#808080] hover:text-white text-xs"
+            >
+              {showPassword ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+        </div>
+        {authError && (
+          <div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3">
+            {authError}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={isAuthLoading}
+          className="w-full py-3 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-bold text-sm transition-colors disabled:opacity-50"
+        >
+          {isAuthLoading ? 'Procesando...' : authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+        </button>
+      </form>
+      <div className="mt-6 text-center">
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMode(authMode === 'login' ? 'register' : 'login')
+            setAuthError('')
+            setEmail('')
+            setPassword('')
+            setName('')
+          }}
+          className="text-[#808080] hover:text-white text-sm transition-colors"
+        >
+          {authMode === 'login' ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ==========================================
+// MAIN APP CONTENT
+// ==========================================
 function AppContent() {
+  const { user, loading } = useUserAuth()
   const { isAdmin } = useAuth()
   const { channels } = useContent()
   const [activeSection, setActiveSection] = useState<Section>('movieseries')
@@ -35,9 +166,7 @@ function AppContent() {
       'premium': 'premium',
       'cineclasico': 'cineclasico'
     }
-    
     const category = categoryMap[activeSection] || 'movies'
-    
     return channels
       .filter(c => c.category === category)
       .map(c => ({ url: c.url, title: c.name }))
@@ -47,9 +176,7 @@ function AppContent() {
   const currentChannelIndex = currentStream?.index ?? 0
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10)
-    }
+    const handleScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
@@ -65,6 +192,26 @@ function AppContent() {
     { id: 'chat' as Section, label: 'Chat', icon: MessageCircle },
   ]
 
+  // 🚨 STRICT BLOCK: Show loading spinner or Auth Wall if not logged in
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-[#E50914] animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#141414] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-[#1F1F1F] border border-[#2F2F2F] rounded-lg p-8 shadow-2xl">
+          <AuthWall />
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ APP IS FULLY ACCESSIBLE ONLY IF USER IS LOGGED IN
   return (
     <div className="min-h-screen bg-[#141414] text-[#e5e5e5]">
       <header 
@@ -128,7 +275,7 @@ function AppContent() {
                 }`}
               >
                 <User className="w-4 h-4"/>
-                <span className="text-sm font-medium">{isAdmin ? 'Admin' : 'Invitado'}</span>
+                <span className="text-sm font-medium">{user.name || 'Usuario'}</span>
               </button>
 
               <button className="lg:hidden p-2 text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -348,7 +495,7 @@ function AppContent() {
 
 function App() {
   return (
-    <UserAuthProvider> {/* 👈 NUEVO WRAPPER AGREGADO AQUÍ */}
+    <UserAuthProvider>
       <AuthProvider>
         <UserProvider>
           <ContentProvider>
