@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useUserAuth } from '../context/UserAuthContext' // ✅ NUEVO: Importamos el nuevo contexto
 import { useContent, Movie } from '../context/ContentContext'
 import { useMiLista } from '../hooks/useMiLista'
 import Hls from 'hls.js'
@@ -65,7 +66,7 @@ function MovieCard({
           </div>
         )}
 
-        {/* ✅ BOTÓN DE ELIMINAR RESTAURADO PARA ADMIN */}
+        {/* ✅ BOTÓN DE ELIMINAR: Ahora funcionará porque isAdmin será true para tu correo */}
         {isAdmin && onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete() }}
@@ -99,7 +100,6 @@ function MovieCard({
   )
 }
 
-// ... (El resto del componente Movies se mantiene igual, solo aseguramos que pase isAdmin y onDelete)
 function FloatingPreview({ item }: { item: HoveredItem | null }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -188,7 +188,11 @@ function SeriesModal({ series, onClose, onPlay }: { series: Movie, onClose: () =
 }
 
 export default function Movies({ onPlayMovie }: MoviesProps) {
-  const { isAdmin } = useAuth()
+  // ✅ AQUÍ ESTABA LA CLAVE: Combinamos ambos sistemas para asegurar que tu correo tenga acceso total
+  const { isAdmin: legacyIsAdmin } = useAuth()
+  const { isUserAdmin } = useUserAuth() 
+  const isAdmin = isUserAdmin || legacyIsAdmin 
+
   const { movies, removeMovie } = useContent()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
@@ -237,6 +241,8 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
             <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar películas, series..." className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" />
           </div>
+          
+          {/* ✅ BOTONES DE ADMIN: Ahora se mostrarán porque isAdmin es true para tu correo */}
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
