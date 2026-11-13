@@ -52,6 +52,7 @@ interface ContentContextType {
   removeChannel: (id: string) => Promise<void>
   addMovie: (movie: Omit<Movie, 'id'>) => Promise<void>
   removeMovie: (id: string) => Promise<void>
+  updateMovie: (id: string, updates: Partial<Pick<Movie, 'url' | 'episodes'>>) => Promise<void>
   importM3U: (content: string, category: string) => Promise<number>
   loading: boolean
 }
@@ -59,7 +60,7 @@ interface ContentContextType {
 const ContentContext = createContext<ContentContextType | undefined>(undefined)
 
 export function ContentProvider({ children }: { children: ReactNode }) {
-  const { user } = useUserAuth() // 👈 Obtenemos el usuario logueado
+  const { user } = useUserAuth()
   const [channels, setChannels] = useState<Channel[]>([])
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,7 +117,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       logo: channel.logo || null,
       group: channel.group || null,
       category: normalizeCategory(channel.category),
-      owner_id: user?.id || null // 👈 Asignamos el dueño
+      owner_id: user?.id || null
     }
     const { data, error } = await supabase.from('channels').insert([normalized]).select().single()
     if (error) console.error('❌ Error al agregar canal:', error)
@@ -126,9 +127,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const removeChannel = async (id: string) => {
     if (!id) return
     const channel = channels.find(c => c.id === id)
-    // 👈 VERIFICACIÓN DE PERMISOS: Solo el dueño puede borrar
     if (channel && channel.owner_id && channel.owner_id !== user?.id) {
-      console.error('❌ No tienes permiso para eliminar este canal (no eres el dueño)')
+      console.error('❌ No tienes permiso para eliminar este canal')
       return
     }
     const { error } = await supabase.from('channels').delete().eq('id', id)
@@ -146,10 +146,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       genre: normalizeGenre(movie.genre),
       category: normalizeCategory(movie.category),
       episodes: movie.episodes || null,
-      owner_id: user?.id || null // 👈 Asignamos el dueño
+      owner_id: user?.id || null
     }
-
-    console.log('🎬 Enviando a Supabase:', movieData)
 
     const { data, error } = await supabase.from('movies').insert([movieData]).select().single()
 
@@ -157,7 +155,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       console.error('❌ ERROR DE SUPABASE AL GUARDAR:', error)
       throw error
     } else if (data) {
-      console.log('✅ Película/Serie guardada:', data)
       setMovies(prev => [normalizeMovie(data), ...prev])
     }
   }
@@ -165,13 +162,36 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const removeMovie = async (id: string) => {
     if (!id) return
     const movie = movies.find(m => m.id === id)
-    // 👈 VERIFICACIÓN DE PERMISOS: Solo el dueño puede borrar
     if (movie && movie.owner_id && movie.owner_id !== user?.id) {
-      console.error('❌ No tienes permiso para eliminar esta película (no eres el dueño)')
+      console.error('❌ No tienes permiso para eliminar esta película')
       return
     }
     const { error } = await supabase.from('movies').delete().eq('id', id)
     if (!error) setMovies(prev => prev.filter(m => m.id !== id))
+  }
+
+  const updateMovie = async (id: string, updates: Partial<Pick<Movie, 'url' | 'episodes'>>) => {
+    if (!id) return
+    const movie = movies.find(m => m.id === id)
+    if (movie && movie.owner_id && movie.owner_id !== user?.id) {
+      console.error('❌ No tienes permiso para editar esta película')
+      return
+    }
+
+    const updateData: any = {}
+    if (updates.url !== undefined) updateData.url = updates.url
+    if (updates.episodes !== undefined) updateData.episodes = updates.episodes
+
+    if (Object.keys(updateData).length === 0) return
+
+    const { data, error } = await supabase.from('movies').update(updateData).eq('id', id).select().single()
+
+    if (error) {
+      console.error('❌ ERROR AL ACTUALIZAR:', error)
+      throw error
+    } else if (data) {
+      setMovies(prev => prev.map(m => m.id === id ? normalizeMovie(data) : m))
+    }
   }
 
   const importM3U = async (content: string, category: string): Promise<number> => {
@@ -201,7 +221,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
 
     if (newChannels.length === 0) return 0
 
-    // 👈 Asignamos el dueño a los canales importados en masa
     const channelsToInsert = newChannels.map(c => ({ ...c, owner_id: user?.id || null }))
     const { data, error } = await supabase.from('channels').insert(channelsToInsert).select()
     
@@ -218,7 +237,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ContentContext.Provider value={{ channels, movies, addChannel, removeChannel, addMovie, removeMovie, importM3U, loading }}>
+    <ContentContext.Provider value={{ channels, movies, addChannel, removeChannel, addMovie, removeMovie, updateMovie, importM3U, loading }}>
       {children}
     </ContentContext.Provider>
   )

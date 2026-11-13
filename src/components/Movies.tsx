@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
+import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X, Edit } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useUserAuth } from '../context/UserAuthContext' // ✅ NUEVO: Importamos el nuevo contexto
+import { useUserAuth } from '../context/UserAuthContext'
 import { useContent, Movie } from '../context/ContentContext'
 import { useMiLista } from '../hooks/useMiLista'
 import Hls from 'hls.js'
@@ -28,7 +28,8 @@ function MovieCard({
   onHoverEnd,
   onClick,
   isAdmin,
-  onDelete
+  onDelete,
+  onEdit
 }: {
   item: Movie
   onHover: () => void
@@ -36,6 +37,7 @@ function MovieCard({
   onClick: () => void
   isAdmin: boolean
   onDelete?: () => void
+  onEdit?: () => void
 }) {
   const { miLista, toggleMiLista, isInMiLista } = useMiLista()
   const inList = isInMiLista(item.id)
@@ -66,15 +68,28 @@ function MovieCard({
           </div>
         )}
 
-        {/* ✅ BOTÓN DE ELIMINAR: Ahora funcionará porque isAdmin será true para tu correo */}
-        {isAdmin && onDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="absolute top-2 right-2 w-8 h-8 bg-[#E50914] hover:bg-[#F40612] rounded-full flex items-center justify-center z-20 transition-all shadow-lg"
-            title="Eliminar"
-          >
-            <Trash2 className="w-4 h-4 text-white"/>
-          </button>
+        {/* ✅ BOTONES DE ADMIN: Editar y Eliminar */}
+        {isAdmin && (
+          <div className="absolute top-2 right-2 flex gap-1 z-20">
+            {onEdit && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit() }}
+                className="w-8 h-8 bg-[#4A90E2] hover:bg-[#357ABD] rounded-full flex items-center justify-center transition-all shadow-lg"
+                title="Editar URL"
+              >
+                <Edit className="w-4 h-4 text-white"/>
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete() }}
+                className="w-8 h-8 bg-[#E50914] hover:bg-[#F40612] rounded-full flex items-center justify-center transition-all shadow-lg"
+                title="Eliminar"
+              >
+                <Trash2 className="w-4 h-4 text-white"/>
+              </button>
+            )}
+          </div>
         )}
 
         <div className={`absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent transition-opacity duration-300 flex flex-col justify-end p-3 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
@@ -187,17 +202,110 @@ function SeriesModal({ series, onClose, onPlay }: { series: Movie, onClose: () =
   )
 }
 
-export default function Movies({ onPlayMovie }: MoviesProps) {
-  // ✅ AQUÍ ESTABA LA CLAVE: Combinamos ambos sistemas para asegurar que tu correo tenga acceso total
-  const { isAdmin: legacyIsAdmin } = useAuth()
-  const { isUserAdmin } = useUserAuth() 
-  const isAdmin = isUserAdmin || legacyIsAdmin 
+function EditMovieModal({ movie, onClose, onSave }: { movie: Movie, onClose: () => void, onSave: (id: string, url: string, episodes?: { title: string; url: string }[]) => void }) {
+  const [newUrl, setNewUrl] = useState(movie.url)
+  const [episodes, setEpisodes] = useState(movie.episodes || [{ title: 'Episodio 1', url: movie.url }])
+  const isSeries = movie.genre?.toLowerCase().trim() === 'series'
 
-  const { movies, removeMovie } = useContent()
+  const handleSave = () => {
+    if (isSeries) {
+      onSave(movie.id, episodes[0]?.url || '', episodes)
+    } else {
+      onSave(movie.id, newUrl)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-[#181818] rounded-lg shadow-2xl border border-[#2F2F2F] w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+              <Edit className="w-6 h-6 text-[#4A90E2]" />
+              Editar URL
+            </h2>
+            <button onClick={onClose} className="text-[#808080] hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+          </div>
+
+          <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4 mb-6">
+            <h3 className="text-white font-bold text-lg mb-2">{movie.title}</h3>
+            <p className="text-[#808080] text-sm">{movie.genre} • {movie.year}</p>
+          </div>
+
+          {isSeries ? (
+            <div className="space-y-4">
+              <h4 className="text-white font-bold text-sm">Episodios</h4>
+              {episodes.map((ep, idx) => (
+                <div key={idx} className="space-y-2 bg-[#2F2F2F] p-3 rounded-md">
+                  <input
+                    type="text"
+                    value={ep.title}
+                    onChange={(e) => {
+                      const newEps = [...episodes]
+                      newEps[idx].title = e.target.value
+                      setEpisodes(newEps)
+                    }}
+                    placeholder="Título del episodio"
+                    className="w-full px-3 py-2 bg-[#1F1F1F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#4A90E2] outline-none"
+                  />
+                  <input
+                    type="url"
+                    value={ep.url}
+                    onChange={(e) => {
+                      const newEps = [...episodes]
+                      newEps[idx].url = e.target.value
+                      setEpisodes(newEps)
+                    }}
+                    placeholder="URL del stream (.m3u8)"
+                    className="w-full px-3 py-2 bg-[#1F1F1F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#4A90E2] outline-none font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-white text-sm font-medium">URL del Stream</label>
+              <input
+                type="url"
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                placeholder="https://ejemplo.com/stream.m3u8"
+                className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#4A90E2] outline-none font-mono"
+              />
+            </div>
+          )}
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 bg-[#2F2F2F] hover:bg-[#3F3F3F] text-white rounded-md font-medium transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 py-3 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md font-medium transition-colors"
+            >
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function Movies({ onPlayMovie }: MoviesProps) {
+  const { isAdmin: legacyIsAdmin } = useAuth()
+  const { isUserAdmin } = useUserAuth()
+  const isAdmin = isUserAdmin || legacyIsAdmin
+
+  const { movies, removeMovie, updateMovie } = useContent()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [hoveredItem, setHoveredItem] = useState<HoveredItem | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<Movie | null>(null)
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null)
 
   const moviesList = movies.filter(m => m.genre?.toLowerCase().trim() === 'movies')
   const seriesList = movies.filter(m => m.genre?.toLowerCase().trim() === 'series')
@@ -205,6 +313,16 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
   const filteredSeries = seriesList.filter(m => m.title.toLowerCase().includes(searchTerm.toLowerCase()))
 
   const handleDeleteItem = (item: Movie) => { if (item.id) removeMovie(item.id) }
+
+  const handleEditMovie = async (id: string, url: string, episodes?: { title: string; url: string }[]) => {
+    try {
+      await updateMovie(id, { url, episodes })
+      setEditingMovie(null)
+    } catch (error) {
+      console.error('Error al actualizar:', error)
+      alert('Error al actualizar la URL')
+    }
+  }
 
   const toggleItemSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -226,6 +344,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
     <div className="pt-8">
       <FloatingPreview item={hoveredItem} />
       {selectedSeries && <SeriesModal series={selectedSeries} onClose={() => setSelectedSeries(null)} onPlay={onPlayMovie} />}
+      {editingMovie && <EditMovieModal movie={editingMovie} onClose={() => setEditingMovie(null)} onSave={handleEditMovie} />}
 
       <div className="px-4 md:px-12 mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -242,7 +361,6 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
             <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar películas, series..." className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" />
           </div>
           
-          {/* ✅ BOTONES DE ADMIN: Ahora se mostrarán porque isAdmin es true para tu correo */}
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
@@ -278,6 +396,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
                   onClick={() => onPlayMovie(item.url, item.title)}
                   isAdmin={isAdmin}
                   onDelete={() => handleDeleteItem(item)}
+                  onEdit={() => setEditingMovie(item)}
                 />
               ))}
             </Row>
@@ -293,6 +412,7 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
                   onClick={() => setSelectedSeries(item)}
                   isAdmin={isAdmin}
                   onDelete={() => handleDeleteItem(item)}
+                  onEdit={() => setEditingMovie(item)}
                 />
               ))}
             </Row>
