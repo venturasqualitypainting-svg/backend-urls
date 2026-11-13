@@ -23,7 +23,7 @@ interface ProfileContextType {
   watchHistory: WatchHistory[]
   parentalPin: string
   setCurrentProfile: (profile: Profile | null) => void
-  addProfile: (name: string, isKids: boolean) => void
+  addProfile: (name: string, isKids: boolean, avatar: string) => void
   removeProfile: (id: string) => void
   updateWatchHistory: (item: Omit<WatchHistory, 'timestamp'>) => void
   removeFromHistory: (id: string) => void
@@ -33,11 +33,13 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined)
 
-const AVATARS = [
+export const AVATARS = [
   'https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png',
-  'https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png',
-  'https://upload.wikimedia.org/wikipedia/commons/a/ac/Default_pfp.jpg',
-  'https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png'
+  'https://i.imgur.com/KxWi5bS.png',
+  'https://i.imgur.com/4T1Kz8P.png',
+  'https://i.imgur.com/8Qj8Qj8.png',
+  'https://i.imgur.com/9Z9Z9Z9.png',
+  'https://i.imgur.com/3Y3Y3Y3.png'
 ]
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
@@ -64,7 +66,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (currentProfile) {
-      const savedHistory = localStorage.getItem(`tunetv_history_\${currentProfile.id}`)
+      const savedHistory = localStorage.getItem('tunetv_history_' + currentProfile.id)
       setWatchHistory(savedHistory ? JSON.parse(savedHistory) : [])
     } else {
       setWatchHistory([])
@@ -73,7 +75,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (currentProfile) {
-      localStorage.setItem(`tunetv_history_\${currentProfile.id}`, JSON.stringify(watchHistory))
+      localStorage.setItem('tunetv_history_' + currentProfile.id, JSON.stringify(watchHistory))
     }
   }, [watchHistory, currentProfile])
 
@@ -81,12 +83,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('tunetv_parental_pin', parentalPin)
   }, [parentalPin])
 
-  const addProfile = (name: string, isKids: boolean) => {
+  const addProfile = (name: string, isKids: boolean, avatar: string) => {
     if (profiles.length >= 4) return
     const newProfile: Profile = {
       id: Date.now().toString(),
       name,
-      avatar: AVATARS[profiles.length % AVATARS.length],
+      avatar: avatar || AVATARS[profiles.length % AVATARS.length],
       isKids
     }
     setProfiles(prev => [...prev, newProfile])
@@ -95,7 +97,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const removeProfile = (id: string) => {
     if (profiles.length <= 1) return
     setProfiles(prev => prev.filter(p => p.id !== id))
-    localStorage.removeItem(`tunetv_history_\${id}`)
+    localStorage.removeItem('tunetv_history_' + id)
     if (currentProfile?.id === id) setCurrentProfile(null)
   }
 

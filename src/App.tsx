@@ -94,7 +94,7 @@ function AppContent() {
   const { channels } = useContent()
   const { currentProfile, setCurrentProfile } = useProfile()
   const [activeSection, setActiveSection] = useState<Section>('movieseries')
-  const [currentStream, setCurrentStream] = useState<{ url: string; title: string; poster?: string; startTime?: number; index?: number } | null>(null)
+  const [currentStream, setCurrentStream] = useState<{ url: string; title: string; poster?: string; startTime?: number; index?: number; isLive?: boolean } | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
 
@@ -113,7 +113,6 @@ function AppContent() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Redirect Kids profile to Kids section
   useEffect(() => {
     if (currentProfile?.isKids && activeSection !== 'kids') {
       setActiveSection('kids')
@@ -152,18 +151,19 @@ function AppContent() {
       <AnimatePresence>
         {currentStream && (
           <VideoPlayer
-            key={`${currentStream.url}-${currentChannelIndex}`}
+            key={currentStream.url + currentChannelIndex}
             url={currentStream.url}
             title={currentStream.title}
             poster={currentStream.poster}
             startTime={currentStream.startTime}
+            isLive={currentStream.isLive}
             onClose={() => setCurrentStream(null)}
             channels={currentCategoryChannels}
             currentIndex={currentChannelIndex}
             onChannelChange={(index) => {
               if (index >= 0 && index < currentCategoryChannels.length) {
                 const newChannel = currentCategoryChannels[index]
-                setCurrentStream({ url: newChannel.url, title: newChannel.title, index })
+                setCurrentStream({ url: newChannel.url, title: newChannel.title, index, isLive: true })
               }
             }}
           />
@@ -184,28 +184,28 @@ function AppContent() {
             {activeSection === 'movieseries' && (
               <>
                 <ContinueWatchingRow 
-                  onPlay={(url, title, startTime) => setCurrentStream({ url, title, startTime })} 
+                  onPlay={(url, title, startTime) => setCurrentStream({ url, title, startTime, isLive: false })} 
                 />
-                <Movies onPlayMovie={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })}/>
+                <Movies onPlayMovie={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: false })}/>
               </>
             )}
             {activeSection === 'deportes' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Deportes" icon={Trophy} iconColor="text-[#E50914]" borderColor="border-[#E50914]/50" gradientFrom="from-[#E50914]/30" gradientTo="to-[#B00710]/30" category="deportes" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Deportes" icon={Trophy} iconColor="text-[#E50914]" borderColor="border-[#E50914]/50" gradientFrom="from-[#E50914]/30" gradientTo="to-[#B00710]/30" category="deportes" />
             )}
             {activeSection === 'kids' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Kids" icon={Baby} iconColor="text-[#00D4FF]" borderColor="border-[#00D4FF]/50" gradientFrom="from-[#00D4FF]/30" gradientTo="to-[#0099CC]/30" category="kids" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Kids" icon={Baby} iconColor="text-[#00D4FF]" borderColor="border-[#00D4FF]/50" gradientFrom="from-[#00D4FF]/30" gradientTo="to-[#0099CC]/30" category="kids" />
             )}
             {activeSection === 'entretenimiento' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Entretenimiento" icon={Clapperboard} iconColor="text-[#FF6B35]" borderColor="border-[#FF6B35]/50" gradientFrom="from-[#FF6B35]/30" gradientTo="to-[#CC5500]/30" category="entretenimiento" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Entretenimiento" icon={Clapperboard} iconColor="text-[#FF6B35]" borderColor="border-[#FF6B35]/50" gradientFrom="from-[#FF6B35]/30" gradientTo="to-[#CC5500]/30" category="entretenimiento" />
             )}
             {activeSection === 'historia' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Historia" icon={BookOpen} iconColor="text-[#4A90E2]" borderColor="border-[#4A90E2]/50" gradientFrom="from-[#4A90E2]/30" gradientTo="to-[#2E5C8A]/30" category="historia" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Historia" icon={BookOpen} iconColor="text-[#4A90E2]" borderColor="border-[#4A90E2]/50" gradientFrom="from-[#4A90E2]/30" gradientTo="to-[#2E5C8A]/30" category="historia" />
             )}
             {activeSection === 'premium' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Premium" icon={Crown} iconColor="text-[#FFD700]" borderColor="border-[#FFD700]/50" gradientFrom="from-[#FFD700]/30" gradientTo="to-[#CC9900]/30" category="premium" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Premium" icon={Crown} iconColor="text-[#FFD700]" borderColor="border-[#FFD700]/50" gradientFrom="from-[#FFD700]/30" gradientTo="to-[#CC9900]/30" category="premium" />
             )}
             {activeSection === 'cineclasico' && (
-              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index })} title="Cine Clásico" icon={Film} iconColor="text-[#8B4513]" borderColor="border-[#8B4513]/50" gradientFrom="from-[#8B4513]/30" gradientTo="to-[#654321]/30" category="cineclasico" />
+              <ContentSection onPlay={(url: string, title: string, index?: number) => setCurrentStream({ url, title, index, isLive: true })} title="Cine Clásico" icon={Film} iconColor="text-[#8B4513]" borderColor="border-[#8B4513]/50" gradientFrom="from-[#8B4513]/30" gradientTo="to-[#654321]/30" category="cineclasico" />
             )}
             {activeSection === 'chat' && <ChatRoom/>}
             {activeSection === 'settings' && (

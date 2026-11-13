@@ -8,13 +8,14 @@ interface VideoPlayerProps {
   title: string
   poster?: string
   startTime?: number
+  isLive?: boolean
   onClose: () => void
   channels?: { url: string; title: string }[]
   currentIndex?: number
   onChannelChange?: (index: number) => void
 }
 
-export default function VideoPlayer({ url, title, poster, startTime = 0, onClose, channels = [], currentIndex = 0, onChannelChange }: VideoPlayerProps) {
+export default function VideoPlayer({ url, title, poster, startTime = 0, isLive = false, onClose, channels = [], currentIndex = 0, onChannelChange }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,14 +40,14 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
       hls.loadSource(url)
       hls.attachMedia(video)
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (startTime > 0) video.currentTime = startTime
+        if (startTime > 0 && !isLive) video.currentTime = startTime
         video.play().catch(() => {})
         setIsPlaying(true)
       })
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url
       video.addEventListener('loadedmetadata', () => {
-        if (startTime > 0) video.currentTime = startTime
+        if (startTime > 0 && !isLive) video.currentTime = startTime
         video.play().catch(() => {})
         setIsPlaying(true)
       })
@@ -58,7 +59,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
         hlsRef.current = null
       }
     }
-  }, [url, startTime])
+  }, [url, startTime, isLive])
 
   useEffect(() => {
     const video = videoRef.current
@@ -66,18 +67,21 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
 
     const updateTime = () => {
       setCurrentTime(video.currentTime)
-      const now = Date.now()
-      if (now - lastSaveRef.current > 5000) {
-        lastSaveRef.current = now
-        if (video.duration && video.duration > 0) {
-          updateWatchHistory({
-            id: url,
-            title,
-            url,
-            poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop',
-            currentTime: video.currentTime,
-            duration: video.duration
-          })
+      // SOLO guardar historial si NO es un canal en vivo
+      if (!isLive) {
+        const now = Date.now()
+        if (now - lastSaveRef.current > 5000) {
+          lastSaveRef.current = now
+          if (video.duration && video.duration > 0) {
+            updateWatchHistory({
+              id: url,
+              title,
+              url,
+              poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop',
+              currentTime: video.currentTime,
+              duration: video.duration
+            })
+          }
         }
       }
     }
@@ -85,8 +89,9 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
     
     video.addEventListener('timeupdate', updateTime)
     video.addEventListener('loadedmetadata', updateDuration)
+    
     video.addEventListener('pause', () => {
-      if (video.duration && video.duration > 0) {
+      if (!isLive && video.duration && video.duration > 0) {
         updateWatchHistory({
           id: url,
           title,
@@ -102,7 +107,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
       video.removeEventListener('timeupdate', updateTime)
       video.removeEventListener('loadedmetadata', updateDuration)
     }
-  }, [url, title, poster, updateWatchHistory])
+  }, [url, title, poster, updateWatchHistory, isLive])
 
   const togglePlay = () => {
     const video = videoRef.current
@@ -136,16 +141,12 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
   const handleCast = async () => {
     const video = videoRef.current
     if (!video) return
-
     if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === 'function') {
       try {
         video.webkitSetPresentationMode('picture-in-picture')
         return
-      } catch (e) {
-        console.log('AirPlay not available')
-      }
+      } catch (e) { console.log('AirPlay not available') }
     }
-
     if (window.chrome && window.chrome.cast) {
       try {
         const castSession = window.chrome.cast.session.getSession()
@@ -162,14 +163,10 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
               const mediaInfo = new window.chrome.cast.media.MediaInfo(url, 'application/x-mpegurl')
               const request = new window.chrome.cast.media.LoadRequest(mediaInfo)
               session.loadMedia(request)
-            },
-            () => {}
-          )
+            }, () => {})
           window.chrome.cast.initialize(apiConfig, () => {}, () => {})
         }
-      } catch (e) {
-        console.error('Cast error:', e)
-      }
+      } catch (e) { console.error('Cast error:', e) }
     } else {
       alert('Cast no disponible en este navegador')
     }
@@ -192,11 +189,8 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
   const changeChannel = (direction: 'prev' | 'next') => {
     if (!channels.length || !onChannelChange) return
     let newIndex = currentIndex
-    if (direction === 'prev') {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : channels.length - 1
-    } else {
-      newIndex = currentIndex < channels.length - 1 ? currentIndex + 1 : 0
-    }
+    if (direction === 'prev') newIndex = currentIndex > 0 ? currentIndex - 1 : channels.length - 1
+    else newIndex = currentIndex < channels.length - 1 ? currentIndex + 1 : 0
     onChannelChange(newIndex)
   }
 
@@ -212,7 +206,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
     if (isNaN(seconds)) return '0:00'
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
+    return mins + ':' + secs.toString().padStart(2, '0')
   }
 
   return (
@@ -222,31 +216,19 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
       onMouseMove={handleMouseMove}
       onClick={() => setShowControls(!showControls)}
     >
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        muted={isMuted}
-        playsInline
-        x-webkit-airplay="allow"
-      />
+      <video ref={videoRef} className="w-full h-full object-contain" muted={isMuted} playsInline x-webkit-airplay="allow" />
 
       <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors">
-              <X className="w-6 h-6 text-white"/>
-            </button>
-            <h3 className="text-white text-lg font-bold truncate max-w-md">{title}</h3>
+            <button onClick={onClose} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><X className="w-6 h-6 text-white"/></button>
+            <h3 className="text-white text-lg font-bold truncate max-w-md">{title} {isLive && <span className="text-[#E50914] text-sm ml-2">EN VIVO</span>}</h3>
           </div>
           <div className="flex items-center gap-2">
             {channels.length > 1 && (
               <>
-                <button onClick={() => changeChannel('prev')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors">
-                  <SkipBack className="w-5 h-5 text-white"/>
-                </button>
-                <button onClick={() => changeChannel('next')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors">
-                  <SkipForward className="w-5 h-5 text-white"/>
-                </button>
+                <button onClick={() => changeChannel('prev')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
+                <button onClick={() => changeChannel('next')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
               </>
             )}
           </div>
@@ -268,14 +250,13 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
               max={duration || 0}
               value={currentTime}
               onChange={seek}
-              className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914]"
-              style={{
-                background: `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, #4B5563 ${(currentTime / (duration || 1)) * 100}%, #4B5563 100%)`
-              }}
+              disabled={isLive}
+              className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914] disabled:opacity-30"
+              style={{ background: isLive ? '#4B5563' : 'linear-gradient(to right, #E50914 0%, #E50914 ' + ((currentTime / (duration || 1)) * 100) + '%, #4B5563 ' + ((currentTime / (duration || 1)) * 100) + '%, #4B5563 100%)' }}
             />
             <div className="flex justify-between text-xs text-gray-400 mt-1">
               <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
+              <span>{isLive ? 'EN VIVO' : formatTime(duration)}</span>
             </div>
           </div>
 
@@ -284,20 +265,18 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, onClose
               <button onClick={togglePlay} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 {isPlaying ? <Pause className="w-6 h-6 text-white"/> : <Play className="w-6 h-6 text-white fill-white"/>}
               </button>
-              <button onClick={() => skip(-10)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                <SkipBack className="w-5 h-5 text-white"/>
-              </button>
-              <button onClick={() => skip(10)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                <SkipForward className="w-5 h-5 text-white"/>
-              </button>
+              {!isLive && (
+                <>
+                  <button onClick={() => skip(-10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
+                  <button onClick={() => skip(10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
+                </>
+              )}
               <button onClick={toggleMute} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 {isMuted ? <VolumeX className="w-6 h-6 text-white"/> : <Volume2 className="w-6 h-6 text-white"/>}
               </button>
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={handleCast} className={`p-2 hover:bg-white/10 rounded-full transition-colors ${isCasting ? 'text-[#E50914]' : 'text-white'}`} title="Cast to device">
-                <Cast className="w-6 h-6"/>
-              </button>
+              <button onClick={handleCast} className={`p-2 hover:bg-white/10 rounded-full transition-colors ${isCasting ? 'text-[#E50914]' : 'text-white'}`} title="Cast"><Cast className="w-6 h-6"/></button>
               <button onClick={toggleFullscreen} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 {isFullscreen ? <Minimize className="w-6 h-6 text-white"/> : <Maximize className="w-6 h-6 text-white"/>}
               </button>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { UserPlus, X, Lock } from 'lucide-react'
-import { useProfile, Profile } from '../context/ProfileContext'
+import { useProfile, Profile, AVATARS } from '../context/ProfileContext'
 
 interface ProfileSelectorProps {
   onProfileSelect: (profile: Profile) => void
@@ -11,15 +11,17 @@ export default function ProfileSelector({ onProfileSelect }: ProfileSelectorProp
   const [showAddModal, setShowAddModal] = useState(false)
   const [newProfileName, setNewProfileName] = useState('')
   const [isKids, setIsKids] = useState(false)
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0])
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
   const [targetProfile, setTargetProfile] = useState<Profile | null>(null)
 
   const handleAddProfile = () => {
     if (!newProfileName.trim()) return
-    addProfile(newProfileName.trim(), isKids)
+    addProfile(newProfileName.trim(), isKids, selectedAvatar)
     setNewProfileName('')
     setIsKids(false)
+    setSelectedAvatar(AVATARS[0])
     setShowAddModal(false)
   }
 
@@ -94,6 +96,22 @@ export default function ProfileSelector({ onProfileSelect }: ProfileSelectorProp
               <h2 className="text-xl font-bold text-white">Agregar Perfil</h2>
               <button onClick={() => setShowAddModal(false)}><X className="text-white" /></button>
             </div>
+            
+            <p className="text-[#808080] text-sm mb-2">Elige un avatar:</p>
+            <div className="flex gap-3 mb-4 overflow-x-auto pb-2">
+              {AVATARS.map((avatar) => (
+                <img
+                  key={avatar}
+                  src={avatar}
+                  alt="Avatar"
+                  onClick={() => setSelectedAvatar(avatar)}
+                  className={`w-14 h-14 rounded-md cursor-pointer border-2 transition-all ${
+                    selectedAvatar === avatar ? 'border-[#E50914] scale-110' : 'border-transparent hover:border-white'
+                  }`}
+                />
+              ))}
+            </div>
+
             <input
               type="text"
               value={newProfileName}
