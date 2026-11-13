@@ -1,7 +1,8 @@
 // src/components/ContentSection.tsx
+// src/components/ContentSection.tsx
 import { useState, useEffect } from 'react'
 import { Search, CheckSquare, Square, Trash2, Heart, Tv } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
+import { useUserAuth } from '../context/UserAuthContext'
 import { useContent } from '../context/ContentContext'
 import NetflixCard from './NetflixCard'
 import EPG from './EPG'
@@ -19,7 +20,8 @@ interface ContentSectionProps {
 }
 
 export default function ContentSection({ onPlay, title, icon: Icon, iconColor, category }: ContentSectionProps) {
-  const { isAdmin } = useAuth()
+  // 🚨 USE NEW USER AUTH CONTEXT TO GET ADMIN STATUS
+  const { isUserAdmin } = useUserAuth()
   const { channels, movies, removeChannel, removeMovie } = useContent()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
@@ -145,8 +147,8 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                 />
               </div>
               
-              {/* 🚨 ADMIN ONLY: Selection and Delete Controls */}
-              {isAdmin && (
+              {/* 🚨 ADMIN ONLY: Selection and Delete Controls (NOW USING isUserAdmin) */}
+              {isUserAdmin && (
                 <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setSelectedItems(new Set(filteredItems.map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
                     <CheckSquare className="w-4 h-4"/>Seleccionar todos
@@ -190,8 +192,8 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                     isFavorite={isFavorite(item.id)}
                     isSelected={selectedItems.has(item.id)}
                     onToggleSelection={(e) => toggleItemSelection(item.id, e)}
-                    isAdmin={isAdmin}
-                    onDelete={isAdmin ? () => {
+                    isAdmin={isUserAdmin}
+                    onDelete={isUserAdmin ? () => {
                       if (item.type === 'channel') removeChannel(item.id)
                       else removeMovie(item.id)
                     } : undefined}
@@ -228,8 +230,8 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                     isFavorite={isFavorite(item.id)}
                     isSelected={selectedItems.has(item.id)}
                     onToggleSelection={(e) => toggleItemSelection(item.id, e)}
-                    isAdmin={isAdmin}
-                    onDelete={isAdmin ? () => {
+                    isAdmin={isUserAdmin}
+                    onDelete={isUserAdmin ? () => {
                       if (item.type === 'channel') removeChannel(item.id)
                       else removeMovie(item.id)
                     } : undefined}
