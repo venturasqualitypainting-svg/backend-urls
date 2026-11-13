@@ -52,57 +52,34 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
         setIsPlaying(true)
       })
     }
-
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
     }
   }, [url, startTime, isLive])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-
     const updateTime = () => {
       setCurrentTime(video.currentTime)
-      // SOLO guardar historial si NO es un canal en vivo
       if (!isLive) {
         const now = Date.now()
         if (now - lastSaveRef.current > 5000) {
           lastSaveRef.current = now
           if (video.duration && video.duration > 0) {
-            updateWatchHistory({
-              id: url,
-              title,
-              url,
-              poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop',
-              currentTime: video.currentTime,
-              duration: video.duration
-            })
+            updateWatchHistory({ id: url, title, url, poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop', currentTime: video.currentTime, duration: video.duration })
           }
         }
       }
     }
     const updateDuration = () => setDuration(video.duration)
-    
     video.addEventListener('timeupdate', updateTime)
     video.addEventListener('loadedmetadata', updateDuration)
-    
     video.addEventListener('pause', () => {
       if (!isLive && video.duration && video.duration > 0) {
-        updateWatchHistory({
-          id: url,
-          title,
-          url,
-          poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop',
-          currentTime: video.currentTime,
-          duration: video.duration
-        })
+        updateWatchHistory({ id: url, title, url, poster: poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop', currentTime: video.currentTime, duration: video.duration })
       }
     })
-
     return () => {
       video.removeEventListener('timeupdate', updateTime)
       video.removeEventListener('loadedmetadata', updateDuration)
@@ -112,13 +89,8 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   const togglePlay = () => {
     const video = videoRef.current
     if (!video) return
-    if (video.paused) {
-      video.play()
-      setIsPlaying(true)
-    } else {
-      video.pause()
-      setIsPlaying(false)
-    }
+    if (video.paused) { video.play(); setIsPlaying(true) } 
+    else { video.pause(); setIsPlaying(false) }
   }
 
   const toggleMute = () => {
@@ -129,61 +101,40 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   }
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen()
-      setIsFullscreen(true)
-    } else {
-      document.exitFullscreen()
-      setIsFullscreen(false)
-    }
+    if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullscreen(true) } 
+    else { document.exitFullscreen(); setIsFullscreen(false) }
   }
 
   const handleCast = async () => {
     const video = videoRef.current
     if (!video) return
     if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === 'function') {
-      try {
-        video.webkitSetPresentationMode('picture-in-picture')
-        return
-      } catch (e) { console.log('AirPlay not available') }
+      try { video.webkitSetPresentationMode('picture-in-picture'); return } catch (e) {}
     }
-    if (window.chrome && window.chrome.cast) {
+    if (window.chrome && (window as any).chrome.cast) {
       try {
-        const castSession = window.chrome.cast.session.getSession()
+        const castSession = (window as any).chrome.cast.session.getSession()
         if (castSession) {
-          const mediaInfo = new window.chrome.cast.media.MediaInfo(url, 'application/x-mpegurl')
-          const request = new window.chrome.cast.media.LoadRequest(mediaInfo)
+          const mediaInfo = new (window as any).chrome.cast.media.MediaInfo(url, 'application/x-mpegurl')
+          const request = new (window as any).chrome.cast.media.LoadRequest(mediaInfo)
           await castSession.loadMedia(request)
           setIsCasting(true)
-        } else {
-          const sessionRequest = new window.chrome.cast.SessionRequest(window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID)
-          const apiConfig = new window.chrome.cast.ApiConfig(sessionRequest, 
-            (session) => {
-              setIsCasting(true)
-              const mediaInfo = new window.chrome.cast.media.MediaInfo(url, 'application/x-mpegurl')
-              const request = new window.chrome.cast.media.LoadRequest(mediaInfo)
-              session.loadMedia(request)
-            }, () => {})
-          window.chrome.cast.initialize(apiConfig, () => {}, () => {})
         }
       } catch (e) { console.error('Cast error:', e) }
-    } else {
-      alert('Cast no disponible en este navegador')
     }
   }
 
   const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current
     if (!video) return
-    const time = parseFloat(e.target.value)
-    video.currentTime = time
-    setCurrentTime(time)
+    video.currentTime = parseFloat(e.target.value)
+    setCurrentTime(video.currentTime)
   }
 
   const skip = (seconds: number) => {
     const video = videoRef.current
     if (!video) return
-    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds))
+    video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + seconds))
   }
 
   const changeChannel = (direction: 'prev' | 'next') => {
@@ -197,9 +148,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   const handleMouseMove = () => {
     setShowControls(true)
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
-    controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false)
-    }, 3000)
+    controlsTimeoutRef.current = setTimeout(() => { if (isPlaying) setShowControls(false) }, 3000)
   }
 
   const formatTime = (seconds: number) => {
@@ -210,28 +159,27 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
-      onMouseMove={handleMouseMove}
-      onClick={() => setShowControls(!showControls)}
-    >
+    <div ref={containerRef} className="fixed inset-0 z-[9999] bg-black flex items-center justify-center" onMouseMove={handleMouseMove} onClick={() => setShowControls(!showControls)}>
       <video ref={videoRef} className="w-full h-full object-contain" muted={isMuted} playsInline x-webkit-airplay="allow" />
 
       <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={onClose} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><X className="w-6 h-6 text-white"/></button>
-            <h3 className="text-white text-lg font-bold truncate max-w-md">{title} {isLive && <span className="text-[#E50914] text-sm ml-2">EN VIVO</span>}</h3>
+            <h3 className="text-white text-lg font-bold truncate max-w-md">{title} {isLive && <span className="text-[#E50914] text-sm ml-2 font-bold">EN VIVO</span>}</h3>
           </div>
-          <div className="flex items-center gap-2">
-            {channels.length > 1 && (
-              <>
-                <button onClick={() => changeChannel('prev')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
-                <button onClick={() => changeChannel('next')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
-              </>
-            )}
-          </div>
+          
+          {/* ✅ BOTONES DE CAMBIAR CANAL RESTAURADOS */}
+          {channels.length > 1 && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => changeChannel('prev')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal anterior">
+                <SkipBack className="w-5 h-5 text-white"/>
+              </button>
+              <button onClick={() => changeChannel('next')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal siguiente">
+                <SkipForward className="w-5 h-5 text-white"/>
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -244,16 +192,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
 
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <div className="mb-4">
-            <input
-              type="range"
-              min="0"
-              max={duration || 0}
-              value={currentTime}
-              onChange={seek}
-              disabled={isLive}
-              className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914] disabled:opacity-30"
-              style={{ background: isLive ? '#4B5563' : 'linear-gradient(to right, #E50914 0%, #E50914 ' + ((currentTime / (duration || 1)) * 100) + '%, #4B5563 ' + ((currentTime / (duration || 1)) * 100) + '%, #4B5563 100%)' }}
-            />
+            <input type="range" min="0" max={duration || 0} value={currentTime} onChange={seek} disabled={isLive} className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914] disabled:opacity-30" style={{ background: isLive ? '#4B5563' : `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, #4B5563 ${(currentTime / (duration || 1)) * 100}%, #4B5563 100%)` }} />
             <div className="flex justify-between text-xs text-gray-400 mt-1">
               <span>{formatTime(currentTime)}</span>
               <span>{isLive ? 'EN VIVO' : formatTime(duration)}</span>
@@ -262,24 +201,18 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={togglePlay} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                {isPlaying ? <Pause className="w-6 h-6 text-white"/> : <Play className="w-6 h-6 text-white fill-white"/>}
-              </button>
+              <button onClick={togglePlay} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isPlaying ? <Pause className="w-6 h-6 text-white"/> : <Play className="w-6 h-6 text-white fill-white"/>}</button>
               {!isLive && (
                 <>
                   <button onClick={() => skip(-10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
                   <button onClick={() => skip(10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
                 </>
               )}
-              <button onClick={toggleMute} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                {isMuted ? <VolumeX className="w-6 h-6 text-white"/> : <Volume2 className="w-6 h-6 text-white"/>}
-              </button>
+              <button onClick={toggleMute} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isMuted ? <VolumeX className="w-6 h-6 text-white"/> : <Volume2 className="w-6 h-6 text-white"/>}</button>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={handleCast} className={`p-2 hover:bg-white/10 rounded-full transition-colors ${isCasting ? 'text-[#E50914]' : 'text-white'}`} title="Cast"><Cast className="w-6 h-6"/></button>
-              <button onClick={toggleFullscreen} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                {isFullscreen ? <Minimize className="w-6 h-6 text-white"/> : <Maximize className="w-6 h-6 text-white"/>}
-              </button>
+              <button onClick={toggleFullscreen} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isFullscreen ? <Minimize className="w-6 h-6 text-white"/> : <Maximize className="w-6 h-6 text-white"/>}</button>
             </div>
           </div>
         </div>

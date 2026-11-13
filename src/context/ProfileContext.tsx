@@ -33,13 +33,14 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined)
 
+// ✅ AVATARES SEGUROS Y CONFIABLES (Nunca se rompen)
 export const AVATARS = [
-  'https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png',
-  'https://i.imgur.com/KxWi5bS.png',
-  'https://i.imgur.com/4T1Kz8P.png',
-  'https://i.imgur.com/8Qj8Qj8.png',
-  'https://i.imgur.com/9Z9Z9Z9.png',
-  'https://i.imgur.com/3Y3Y3Y3.png'
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Zack&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Milo&backgroundColor=d1d4f9',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Bella&backgroundColor=ffd5dc',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Kitty&backgroundColor=c0aede'
 ]
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
@@ -113,9 +114,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }
 
   const setParentalPin = (pin: string) => {
-    if (/^\d{4}$/.test(pin)) {
-      setParentalPinState(pin)
-    }
+    if (/^\d{4}$/.test(pin)) setParentalPinState(pin)
   }
 
   const clearParentalPin = () => {

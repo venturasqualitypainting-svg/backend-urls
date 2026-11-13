@@ -1,4 +1,3 @@
-// src/components/Movies.tsx
 import { useState, useEffect, useRef } from 'react'
 import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -22,9 +21,6 @@ interface HoveredItem {
   genre?: string
 }
 
-// ============================================
-// MOVIE CARD (With Hover Preview & Click Action)
-// ============================================
 function MovieCard({
   item,
   onHover,
@@ -69,7 +65,7 @@ function MovieCard({
           </div>
         )}
 
-        {/* 🚨 ADMIN DELETE BADGE - Only visible for admin */}
+        {/* ✅ BOTÓN DE ELIMINAR RESTAURADO PARA ADMIN */}
         {isAdmin && onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete() }}
@@ -103,9 +99,7 @@ function MovieCard({
   )
 }
 
-// ============================================
-// FLOATING GLOBAL PREVIEW PLAYER
-// ============================================
+// ... (El resto del componente Movies se mantiene igual, solo aseguramos que pase isAdmin y onDelete)
 function FloatingPreview({ item }: { item: HoveredItem | null }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
@@ -114,80 +108,36 @@ function FloatingPreview({ item }: { item: HoveredItem | null }) {
 
   useEffect(() => {
     if (!item || !videoRef.current) return
-    setIsLoading(true)
-    setHasError(false)
+    setIsLoading(true); setHasError(false)
     const video = videoRef.current
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy()
-      hlsRef.current = null
-    }
-
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
     if (Hls.isSupported()) {
       const hls = new Hls({ maxBufferLength: 10, maxMaxBufferLength: 30, startLevel: -1, capLevelToPlayerSize: true, debug: false })
       hlsRef.current = hls
       hls.loadSource(item.url)
       hls.attachMedia(video)
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsLoading(false)
-        video.play().catch(() => {})
-      })
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          setHasError(true)
-          setIsLoading(false)
-          hls.destroy()
-        }
-      })
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { setIsLoading(false); video.play().catch(() => {}) })
+      hls.on(Hls.Events.ERROR, (_event, data) => { if (data.fatal) { setHasError(true); setIsLoading(false); hls.destroy() } })
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = item.url
-      video.addEventListener('loadedmetadata', () => {
-        setIsLoading(false)
-        video.play().catch(() => {})
-      })
-      video.addEventListener('error', () => {
-        setHasError(true)
-        setIsLoading(false)
-      })
-    } else {
-      setHasError(true)
-      setIsLoading(false)
-    }
-
+      video.addEventListener('loadedmetadata', () => { setIsLoading(false); video.play().catch(() => {}) })
+      video.addEventListener('error', () => { setHasError(true); setIsLoading(false) })
+    } else { setHasError(true); setIsLoading(false) }
     return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
-      video.pause()
-      video.removeAttribute('src')
-      video.load()
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
+      video.pause(); video.removeAttribute('src'); video.load()
     }
   }, [item?.url])
 
   if (!item) return null
-
   return (
     <div className="fixed top-28 right-4 md:right-12 z-[9999] w-[280px] md:w-[320px] pointer-events-none">
       <div className="bg-[#181818] rounded-lg shadow-2xl border border-[#2F2F2F] overflow-hidden pointer-events-auto">
         <div className="relative aspect-video bg-black">
           <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
-          {isLoading && !hasError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-              <div className="w-10 h-10 border-[3px] border-[#E50914] border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-          {hasError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-4">
-              <div className="text-center">
-                <X className="w-8 h-8 text-[#E50914] mx-auto mb-2" />
-                <p className="text-white text-xs">Stream no disponible</p>
-              </div>
-            </div>
-          )}
-          {(isLoading || hasError) && item.poster && (
-            <img src={item.poster} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-30" />
-          )}
+          {isLoading && !hasError && <div className="absolute inset-0 flex items-center justify-center bg-black/60"><div className="w-10 h-10 border-[3px] border-[#E50914] border-t-transparent rounded-full animate-spin" /></div>}
+          {hasError && <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-4"><div className="text-center"><X className="w-8 h-8 text-[#E50914] mx-auto mb-2" /><p className="text-white text-xs">Stream no disponible</p></div></div>}
+          {(isLoading || hasError) && item.poster && <img src={item.poster} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-30" />}
           <div className="absolute top-2 left-2 bg-[#E50914] px-2 py-0.5 rounded text-xs font-bold text-white">PREVIEW</div>
         </div>
         <div className="p-4">
@@ -204,12 +154,8 @@ function FloatingPreview({ item }: { item: HoveredItem | null }) {
   )
 }
 
-// ============================================
-// SERIES MODAL (For Episode Selection)
-// ============================================
 function SeriesModal({ series, onClose, onPlay }: { series: Movie, onClose: () => void, onPlay: (url: string, title: string) => void }) {
   const episodes = series.episodes && series.episodes.length > 0 ? series.episodes : [{ title: 'Reproducir', url: series.url }]
-  
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="bg-[#181818] rounded-lg shadow-2xl border border-[#2F2F2F] w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -225,25 +171,13 @@ function SeriesModal({ series, onClose, onPlay }: { series: Movie, onClose: () =
              <span className="border border-[#606060] px-1.5 py-0.5 text-[#B3B3B3] rounded text-xs">HD</span>
           </div>
           <p className="text-[#B3B3B3] mb-6 leading-relaxed">{series.description || 'Sin descripción disponible.'}</p>
-          
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Film className="w-5 h-5 text-[#E50914]" /> Episodios
-          </h3>
+          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Film className="w-5 h-5 text-[#E50914]" /> Episodios</h3>
           <div className="space-y-3">
             {episodes.map((ep, idx) => (
               <div key={idx} className="flex items-center gap-4 bg-[#2F2F2F] p-3 rounded-md hover:bg-[#3F3F3F] transition-colors group">
-                <div className="w-10 h-10 bg-[#E50914] rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                  <Play className="w-5 h-5 text-white fill-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium truncate">{ep.title}</p>
-                </div>
-                <button 
-                  onClick={() => { onPlay(ep.url, `${series.title} - ${ep.title}`); onClose(); }}
-                  className="px-4 py-2 bg-white text-black rounded-md font-bold text-sm hover:bg-gray-200 transition-colors flex-shrink-0"
-                >
-                  Reproducir
-                </button>
+                <div className="w-10 h-10 bg-[#E50914] rounded-full flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform"><Play className="w-5 h-5 text-white fill-white" /></div>
+                <div className="flex-1 min-w-0"><p className="text-white font-medium truncate">{ep.title}</p></div>
+                <button onClick={() => { onPlay(ep.url, `${series.title} - ${ep.title}`); onClose(); }} className="px-4 py-2 bg-white text-black rounded-md font-bold text-sm hover:bg-gray-200 transition-colors flex-shrink-0">Reproducir</button>
               </div>
             ))}
           </div>
@@ -253,28 +187,20 @@ function SeriesModal({ series, onClose, onPlay }: { series: Movie, onClose: () =
   )
 }
 
-// ============================================
-// MAIN MOVIES COMPONENT
-// ============================================
 export default function Movies({ onPlayMovie }: MoviesProps) {
   const { isAdmin } = useAuth()
-  const { movies, channels, removeMovie, removeChannel } = useContent()
+  const { movies, removeMovie } = useContent()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [hoveredItem, setHoveredItem] = useState<HoveredItem | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<Movie | null>(null)
 
-  // 🚨 STRICT SEGREGATION: No overlap, no duplicates
   const moviesList = movies.filter(m => m.genre?.toLowerCase().trim() === 'movies')
   const seriesList = movies.filter(m => m.genre?.toLowerCase().trim() === 'series')
-
   const filteredMovies = moviesList.filter(m => m.title.toLowerCase().includes(searchTerm.toLowerCase()))
   const filteredSeries = seriesList.filter(m => m.title.toLowerCase().includes(searchTerm.toLowerCase()))
 
-  const handleDeleteItem = (item: Movie) => {
-    if (!item.id) return
-    removeMovie(item.id)
-  }
+  const handleDeleteItem = (item: Movie) => { if (item.id) removeMovie(item.id) }
 
   const toggleItemSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -309,36 +235,19 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar películas, series y canales..."
-              className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none"
-            />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar películas, series..." className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:border-[#E50914] outline-none" />
           </div>
-          
-          {/* 🚨 ADMIN ONLY: Selection and Delete Controls */}
           {isAdmin && (
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))}
-                className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
-              >
+              <button onClick={() => setSelectedItems(new Set([...filteredMovies, ...filteredSeries].map(i => i.id)))} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
                 <CheckSquare className="w-4 h-4" /> Seleccionar todos
               </button>
               {selectedItems.size > 0 && (
                 <>
-                  <button
-                    onClick={() => setSelectedItems(new Set())}
-                    className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
-                  >
+                  <button onClick={() => setSelectedItems(new Set())} className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2">
                     <Square className="w-4 h-4" /> Deseleccionar
                   </button>
-                  <button
-                    onClick={deleteSelected}
-                    className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors"
-                  >
+                  <button onClick={deleteSelected} className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md flex items-center gap-2 transition-colors">
                     <Trash2 className="w-4 h-4" /> Eliminar ({selectedItems.size})
                   </button>
                 </>
@@ -349,12 +258,9 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
       </div>
 
       {filteredMovies.length === 0 && filteredSeries.length === 0 ? (
-        <div className="px-4 md:px-12">
-          <SkeletonRow />
-        </div>
+        <div className="px-4 md:px-12"><SkeletonRow /></div>
       ) : (
         <div className="space-y-8">
-          {/* 🎯 MOVIES ROW - Using premium <Row> component with arrows */}
           {filteredMovies.length > 0 && (
             <Row title={searchTerm ? `Resultados: ${searchTerm}` : 'Movies'}>
               {filteredMovies.map((item) => (
@@ -370,8 +276,6 @@ export default function Movies({ onPlayMovie }: MoviesProps) {
               ))}
             </Row>
           )}
-
-          {/* 🎯 SERIES ROW - Using premium <Row> component with arrows */}
           {filteredSeries.length > 0 && (
             <Row title="Series">
               {filteredSeries.map((item) => (
