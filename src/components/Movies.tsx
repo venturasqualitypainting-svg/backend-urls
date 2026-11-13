@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Search, CheckSquare, Square, Trash2, Film, Play, Plus, Check, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useUserAuth } from '../context/UserAuthContext' // ✅ NUEVO: Importamos el nuevo contexto
