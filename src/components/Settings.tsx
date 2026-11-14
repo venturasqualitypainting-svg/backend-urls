@@ -15,7 +15,7 @@ interface StreamCheck {
   detectedCategory?: string
 }
 
-type Category = 'movies' | 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico'
+type Category = 'movies' | 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'adultos'
 
 const categories = [
   { id: 'movies' as Category, name: 'Movies & Series', icon: Film, color: 'purple' },
@@ -24,7 +24,8 @@ const categories = [
   { id: 'entretenimiento' as Category, name: 'Entretenimiento', icon: Film, color: 'orange' },
   { id: 'historia' as Category, name: 'Historia', icon: BookOpen, color: 'blue' },
   { id: 'premium' as Category, name: 'Premium', icon: Crown, color: 'amber' },
-  { id: 'cineclasico' as Category, name: 'Cine Clásico', icon: Film, color: 'brown' }
+  { id: 'cineclasico' as Category, name: 'Cine Clásico', icon: Film, color: 'brown' },
+  { id: 'adultos' as Category, name: 'Adultos', icon: Film, color: 'pink' }
 ]
 
 const detectCategory = (name: string, group: string): Category => {
@@ -35,6 +36,7 @@ const detectCategory = (name: string, group: string): Category => {
   if (text.match(/\b(clásic|classic|retro|antigu|viejo|oldies|golden age|epoca de oro|dorada|años 50|años 60|años 70|años 80|clasico|classics|cinema classico|cine de oro)\b/)) return 'cineclasico'
   if (text.match(/\b(premium|hbo|max|star|paramount|apple tv|netflix|amazon prime|disney\+|star\+|hbo max|hbomax|showtime|cinemax|studio universal|universal premium|fox premium|amc|comedy central|mtv|vh1|a&e|lifetime|fx|fxx|tnt|warner)\b/)) return 'premium'
   if (text.match(/\b(entretenimiento|entertainment|variety|show|comedy|comedia|reality|talent|bailando|cantando|concurs|telenovela|novela|series|serie|telefe|televisa|tv azteca|record|gala|farandula|espectaculo|magazine|talk show|late night|mtv|vh1|e!|entertainment)\b/)) return 'entretenimiento'
+  if (text.match(/\b(adulto|adult|xxx|erotic|porno|porn|hot|sexy|playboy|hustler|penthouse)\b/)) return 'adultos'
   return 'movies'
 }
 
@@ -58,7 +60,7 @@ export default function SettingsPanel() {
   const [pinSuccess, setPinSuccess] = useState('')
 
   const [categoryUrls, setCategoryUrls] = useState<Record<Category, string>>({
-    movies: '', kids: '', deportes: '', entretenimiento: '', historia: '', premium: '', cineclasico: ''
+    movies: '', kids: '', deportes: '', entretenimiento: '', historia: '', premium: '', cineclasico: '', adultos: ''
   })
   const [importingCategory, setImportingCategory] = useState<Category | null>(null)
 
@@ -182,11 +184,17 @@ export default function SettingsPanel() {
     }
   }
 
+  // ✅ FUNCIÓN MEJORADA: Previene duplicados y limpia el input
   const handleImportCategory = async (categoryId: Category) => {
     const url = categoryUrls[categoryId]
     if (!url.trim()) return
+    
+    // ✅ Prevenir múltiples clics
+    if (importingCategory) return
+    
     setImportingCategory(categoryId)
-    setError(''); setSuccess('')
+    setError('')
+    setSuccess('')
 
     try {
       let content = ''
@@ -195,30 +203,57 @@ export default function SettingsPanel() {
           const response = await fetch(url)
           content = await response.text()
         } catch {
-          addChannel({ name: `Canal ${categoryId}`, url: url.trim(), category: categoryId })
-          setSuccess(`✅ Canal agregado en ${categoryId}`)
+          // Si no es una URL M3U válida, tratar como URL de canal individual
+          const result = await addChannel({ 
+            name: `Canal ${categoryId}`, 
+            url: url.trim(), 
+            category: categoryId 
+          })
+          
+          if (result.success) {
+            setSuccess(`✅ ${result.message}`)
+          } else {
+            setError(`⚠️ ${result.message}`)
+          }
+          
+          // ✅ Limpiar el input inmediatamente
           setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
           setImportingCategory(null)
           return
         }
-      } else content = url
+      } else {
+        content = url
+      }
 
       const importedCount = await importM3U(content, categoryId)
+      
       if (importedCount > 0) {
         const categoryName = categories.find(c => c.id === categoryId)?.name || categoryId
         setSuccess(`✅ ${importedCount} canales importados en ${categoryName}`)
-      } else setError('No se encontraron canales válidos')
+      } else {
+        setError('No se encontraron canales nuevos (posibles duplicados)')
+      }
+      
+      // ✅ Limpiar el input inmediatamente
       setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
-    } catch (err) { setError('Error al importar') } 
-    finally { setImportingCategory(null) }
+    } catch (err) {
+      setError('Error al importar')
+    } finally {
+      setImportingCategory(null)
+      setTimeout(() => { setSuccess(''); setError('') }, 5000)
+    }
   }
 
   const handleCheckStreams = async () => {
     if (!checkList.trim()) return
-    setIsChecking(true); setCheckResults([])
+    setIsChecking(true)
+    setCheckResults([])
+
     const lines = checkList.split('\n')
     const results: StreamCheck[] = []
-    let currentName = '', currentLogo = '', currentGroup = ''
+    let currentName = ''
+    let currentLogo = ''
+    let currentGroup = ''
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
@@ -235,8 +270,10 @@ export default function SettingsPanel() {
         const cleanUrl = line
         const channelName = currentName || cleanUrl.split('/').pop() || 'Stream'
         const detectedCategory = detectCategory(channelName, currentGroup)
+
         results.push({ url: cleanUrl, name: channelName, logo: currentLogo, group: currentGroup, status: 'checking', detectedCategory })
         setCheckResults([...results])
+
         try {
           const response = await fetch(cleanUrl, { method: 'GET', mode: 'cors', signal: AbortSignal.timeout(8000) })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -245,7 +282,9 @@ export default function SettingsPanel() {
           results[results.length - 1] = { ...results[results.length - 1], status: 'offline', message: err.message || 'No accesible' }
         }
         setCheckResults([...results])
-        currentName = ''; currentLogo = ''; currentGroup = ''
+        currentName = ''
+        currentLogo = ''
+        currentGroup = ''
       }
     }
     setIsChecking(false)
@@ -256,7 +295,9 @@ export default function SettingsPanel() {
       await navigator.clipboard.writeText(url)
       setSuccess('✅ URL copiada')
       setTimeout(() => setSuccess(''), 2000)
-    } catch (err) { setError('Error al copiar') }
+    } catch (err) {
+      setError('Error al copiar')
+    }
   }
 
   const handleRemoveOfflineUrl = (url: string) => setCheckResults(checkResults.filter(result => result.url !== url))
@@ -295,8 +336,9 @@ export default function SettingsPanel() {
       }
       if (totalSaved > 0) {
         setSuccess(`✅ ${totalSaved} streams guardados: ${categorySummary.join(', ')}`)
-        setCheckResults([]); setCheckList('')
-      } else setError('No se pudo guardar en la base de datos')
+        setCheckResults([])
+        setCheckList('')
+      } else setError('No se pudieron guardar (posibles duplicados)')
     } catch (error) {
       console.error('Error al guardar:', error)
       setError('Error de conexión al guardar')
@@ -390,7 +432,6 @@ export default function SettingsPanel() {
             </div>
           </div>
 
-          {/* 🔐 PARENTAL PIN SECTION */}
           <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 bg-[#E50914]/10 rounded-lg flex items-center justify-center">
@@ -520,7 +561,7 @@ export default function SettingsPanel() {
 
           <div className="space-y-4">
             <h4 className="text-white font-bold text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-[#E50914]"/>Importar Contenido por Categoría (M3U)</h4>
-            <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U</p>
+            <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U. El sistema detectará duplicados automáticamente.</p>
             {categories.map((category) => {
               const Icon = category.icon
               const isImporting = importingCategory === category.id
@@ -530,8 +571,19 @@ export default function SettingsPanel() {
                     <div className="w-10 h-10 bg-[#E50914]/10 rounded-md flex items-center justify-center"><Icon className="w-5 h-5 text-[#E50914]"/></div>
                     <div><h5 className="text-white font-medium">{category.name}</h5></div>
                   </div>
-                  <textarea value={categoryUrls[category.id]} onChange={(e) => setCategoryUrls({ ...categoryUrls, [category.id]: e.target.value })} placeholder="Pega aquí la URL de la lista M3U..." rows={4} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
-                  <button onClick={() => handleImportCategory(category.id)} disabled={!categoryUrls[category.id].trim() || isImporting} className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50 flex items-center justify-center gap-2">
+                  <textarea 
+                    value={categoryUrls[category.id]} 
+                    onChange={(e) => setCategoryUrls({ ...categoryUrls, [category.id]: e.target.value })} 
+                    placeholder="Pega aquí la URL de la lista M3U o el contenido..." 
+                    rows={4} 
+                    className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"
+                    disabled={isImporting}
+                  />
+                  <button 
+                    onClick={() => handleImportCategory(category.id)} 
+                    disabled={!categoryUrls[category.id].trim() || isImporting} 
+                    className="w-full py-2 bg-[#E50914] text-white rounded-md hover:bg-[#F40612] disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
                     {isImporting ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Importando...</>) : (<><Upload className="w-4 h-4"/>Importar en {category.name}</>)}
                   </button>
                 </div>

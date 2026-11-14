@@ -2,9 +2,9 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '../lib/supabase'
 import { useUserAuth } from './UserAuthContext'
 
-type CategoryId = 'movies' | 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico'
+type CategoryId = 'movies' | 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'adultos'
 
-const VALID_CATEGORIES: CategoryId[] = ['movies', 'kids', 'deportes', 'entretenimiento', 'historia', 'premium', 'cineclasico']
+const VALID_CATEGORIES: CategoryId[] = ['movies', 'kids', 'deportes', 'entretenimiento', 'historia', 'premium', 'cineclasico', 'adultos']
 
 const normalizeCategory = (cat: string | undefined | null): CategoryId => {
   if (!cat) return 'movies'
@@ -48,7 +48,7 @@ export interface Movie {
 interface ContentContextType {
   channels: Channel[]
   movies: Movie[]
-  addChannel: (channel: Omit<Channel, 'id'>) => Promise<void>
+  addChannel: (channel: Omit<Channel, 'id'>) => Promise<{ success: boolean; message: string }>
   removeChannel: (id: string) => Promise<void>
   addMovie: (movie: Omit<Movie, 'id'>) => Promise<void>
   removeMovie: (id: string) => Promise<void>
@@ -110,7 +110,16 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const addChannel = async (channel: Omit<Channel, 'id'>) => {
+  // ✅ FUNCIÓN MEJORADA: Verifica duplicados antes de insertar
+  const addChannel = async (channel: Omit<Channel, 'id'>): Promise<{ success: boolean; message: string }> => {
+    // Verificar si ya existe un canal con la misma URL
+    const existingChannel = channels.find(c => c.url === channel.url && c.category === normalizeCategory(channel.category))
+    
+    if (existingChannel) {
+      console.log('⚠️ Canal ya existe:', existingChannel.name)
+      return { success: false, message: 'Este canal ya existe en esta categoría' }
+    }
+
     const normalized = {
       name: channel.name,
       url: channel.url,
@@ -119,9 +128,18 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       category: normalizeCategory(channel.category),
       owner_id: user?.id || null
     }
+
     const { data, error } = await supabase.from('channels').insert([normalized]).select().single()
-    if (error) console.error('❌ Error al agregar canal:', error)
-    else if (data) setChannels(prev => [normalizeChannel(data), ...prev])
+    
+    if (error) {
+      console.error('❌ Error al agregar canal:', error)
+      return { success: false, message: 'Error al agregar el canal' }
+    } else if (data) {
+      setChannels(prev => [normalizeChannel(data), ...prev])
+      return { success: true, message: 'Canal agregado exitosamente' }
+    }
+    
+    return { success: false, message: 'Error desconocido' }
   }
 
   const removeChannel = async (id: string) => {
@@ -194,6 +212,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ✅ FUNCIÓN MEJORADA: Filtra duplicados antes de insertar
   const importM3U = async (content: string, category: string): Promise<number> => {
     const normalizedCategory = normalizeCategory(category)
     const lines = content.split('\n')
@@ -212,7 +231,13 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         currentLogo = logoMatch ? logoMatch[1] : ''
         currentGroup = groupMatch ? groupMatch[1] : 'Importados'
       } else if (line && !line.startsWith('#')) {
-        newChannels.push({ name: currentName, url: line, logo: currentLogo || undefined, group: currentGroup, category: normalizedCategory })
+        // ✅ Verificar si ya existe antes de agregar
+        const exists = channels.some(c => c.url === line && c.category === normalizedCategory)
+        if (!exists) {
+          newChannels.push({ name: currentName, url: line, logo: currentLogo || undefined, group: currentGroup, category: normalizedCategory })
+        } else {
+          console.log('⚠️ Saltando canal duplicado:', currentName)
+        }
         currentName = ''
         currentLogo = ''
         currentGroup = ''
