@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Trophy, MessageCircle, Menu, X, Settings, Baby, BookOpen, Crown, Clapperboard, Search, Bell, User, Share2, Send, LogOut } from 'lucide-react'
+import { Film, Trophy, MessageCircle, Menu, X, Settings, Baby, BookOpen, Crown, Clapperboard, Search, Bell, User, Share2, Send, LogOut, Flame } from 'lucide-react'
 import TuneTVLogo from './TuneTVLogo'
 import { useAuth } from '../context/AuthContext'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useNotifications } from '../context/NotificationContext'
 import { useProfile, Profile } from '../context/ProfileContext'
 
-type Section = 'movieseries' | 'deportes' | 'kids' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'chat' | 'settings'
+type Section = 'movieseries' | 'deportes' | 'kids' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'adultos' | 'chat' | 'settings'
 
 interface HeaderProps {
   activeSection: Section
@@ -56,10 +56,10 @@ export default function Header({ activeSection, setActiveSection, setShowShareMo
     { id: 'historia' as Section, label: 'Historia', icon: BookOpen },
     { id: 'premium' as Section, label: 'Premium', icon: Crown },
     { id: 'cineclasico' as Section, label: 'Cine Clásico', icon: Film },
+    { id: 'adultos' as Section, label: 'Adultos', icon: Flame },
     { id: 'chat' as Section, label: 'Chat', icon: MessageCircle },
   ]
 
-  // Filter nav items for Kids profile
   const visibleNavItems = currentProfile?.isKids 
     ? navItems.filter(item => item.id === 'kids' || item.id === 'chat')
     : navItems
@@ -140,7 +140,6 @@ export default function Header({ activeSection, setActiveSection, setShowShareMo
               </AnimatePresence>
             </div>
 
-            {/* Profile Selector Dropdown */}
             <div className="relative" ref={profileDropdownRef}>
               <button 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)}
