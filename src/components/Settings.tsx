@@ -68,7 +68,6 @@ export default function SettingsPanel() {
   const [checkResults, setCheckResults] = useState<StreamCheck[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const [checkTargetCategory, setCheckTargetCategory] = useState<Category>('movies')
-  // ✅ CAMBIO CRÍTICO: autoDetect ahora empieza en FALSE
   const [autoDetect, setAutoDetect] = useState(false)
 
   const [newMovie, setNewMovie] = useState({ 
@@ -188,7 +187,6 @@ export default function SettingsPanel() {
   const handleImportCategory = async (categoryId: Category) => {
     const url = categoryUrls[categoryId]
     if (!url.trim()) return
-    
     if (importingCategory) return
     
     setImportingCategory(categoryId)
@@ -202,18 +200,12 @@ export default function SettingsPanel() {
           const response = await fetch(url)
           content = await response.text()
         } catch {
-          const result = await addChannel({ 
-            name: `Canal ${categoryId}`, 
-            url: url.trim(), 
-            category: categoryId 
-          })
-          
+          const result = await addChannel({ name: `Canal ${categoryId}`, url: url.trim(), category: categoryId })
           if (result.success) {
             setSuccess(`✅ ${result.message}`)
           } else {
             setSuccess(`ℹ️ ${result.message}`)
           }
-          
           setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
           setImportingCategory(null)
           return
@@ -223,14 +215,12 @@ export default function SettingsPanel() {
       }
 
       const importedCount = await importM3U(content, categoryId)
-      
       if (importedCount > 0) {
         const categoryName = categories.find(c => c.id === categoryId)?.name || categoryId
         setSuccess(`✅ ${importedCount} canales nuevos importados en ${categoryName}`)
       } else {
         setSuccess('ℹ️ No se encontraron canales nuevos (todos ya existen)')
       }
-      
       setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
     } catch (err) {
       setError('Error al importar')
@@ -271,11 +261,20 @@ export default function SettingsPanel() {
         setCheckResults([...results])
 
         try {
+          // Intento 1: Verificación normal con CORS
           const response = await fetch(cleanUrl, { method: 'GET', mode: 'cors', signal: AbortSignal.timeout(8000) })
           if (!response.ok) throw new Error(`HTTP ${response.status}`)
           results[results.length - 1] = { ...results[results.length - 1], status: 'online', message: 'Stream funcionando' }
         } catch (err: any) {
-          results[results.length - 1] = { ...results[results.length - 1], status: 'offline', message: err.message || 'No accesible' }
+          // Intento 2: Si falla, puede ser por CORS (muy común en IPTV).
+          // Usamos 'no-cors' para ver si el servidor al menos responde a la conexión.
+          try {
+            await fetch(cleanUrl, { method: 'GET', mode: 'no-cors', signal: AbortSignal.timeout(8000) })
+            results[results.length - 1] = { ...results[results.length - 1], status: 'online', message: 'Alcanzable (CORS)' }
+          } catch (e) {
+            // Si falla incluso en no-cors, el servidor está realmente caído o bloqueado a nivel de red
+            results[results.length - 1] = { ...results[results.length - 1], status: 'offline', message: 'No accesible' }
+          }
         }
         setCheckResults([...results])
         currentName = ''
@@ -589,6 +588,7 @@ export default function SettingsPanel() {
 
           <div className="bg-[#141414] border border-[#2F2F2F] rounded-md p-4">
             <h4 className="text-white font-bold text-lg flex items-center gap-2 mb-3"><CheckCircle className="w-5 h-5 text-green-400"/>Verificador de Streams</h4>
+            <p className="text-[#808080] text-xs mb-3">💡 Nota: Algunos streams IPTV no envían permisos CORS. El verificador ahora los detectará como "Alcanzable (CORS)" si el servidor responde, aunque no pueda leer el contenido.</p>
             <textarea value={checkList} onChange={(e) => setCheckList(e.target.value)} placeholder="Pega URLs para verificar..." rows={5} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm resize-none mb-3 font-mono"/>
             <button onClick={handleCheckStreams} disabled={!checkList.trim() || isChecking} className="w-full py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 mb-4">
               {isChecking ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>Verificando...</>) : (<><CheckCircle className="w-4 h-4"/>Verificar Streams</>)}
@@ -643,6 +643,9 @@ export default function SettingsPanel() {
                           <p className="text-xs text-purple-400 flex items-center gap-1 mt-0.5"><DetectedIcon className="w-3 h-3"/>→ {detectedCat.name}</p>
                         )}
                         <p className="text-[#808080] text-xs truncate">{result.url}</p>
+                        {result.message && result.message !== 'Stream funcionando' && (
+                          <p className="text-[10px] text-yellow-400 mt-0.5">{result.message}</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {result.status === 'online' && (<button onClick={() => handleCopyUrl(result.url)} className="p-1.5 bg-[#3F3F3F] hover:bg-[#4F4F4F] rounded" title="Copiar URL"><Copy className="w-3.5 h-3.5 text-white"/></button>)}
