@@ -110,13 +110,20 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ FUNCIÓN MEJORADA: Verifica duplicados antes de insertar
+  // ✅ VERIFICACIÓN DIRECTA EN SUPABASE
   const addChannel = async (channel: Omit<Channel, 'id'>): Promise<{ success: boolean; message: string }> => {
-    // Verificar si ya existe un canal con la misma URL
-    const existingChannel = channels.find(c => c.url === channel.url && c.category === normalizeCategory(channel.category))
+    const normalizedCategory = normalizeCategory(channel.category)
     
-    if (existingChannel) {
-      console.log('⚠️ Canal ya existe:', existingChannel.name)
+    // Verificar si ya existe en Supabase
+    const { data: existing, error: checkError } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('url', channel.url)
+      .eq('category', normalizedCategory)
+      .single()
+
+    if (existing) {
+      console.log('⚠️ Canal duplicado detectado en Supabase:', channel.url)
       return { success: false, message: 'Este canal ya existe en esta categoría' }
     }
 
@@ -125,13 +132,17 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       url: channel.url,
       logo: channel.logo || null,
       group: channel.group || null,
-      category: normalizeCategory(channel.category),
+      category: normalizedCategory,
       owner_id: user?.id || null
     }
 
     const { data, error } = await supabase.from('channels').insert([normalized]).select().single()
     
     if (error) {
+      if (error.code === '23505') { // Unique violation
+        console.log('⚠️ Violación de unicidad:', error.message)
+        return { success: false, message: 'Este canal ya existe' }
+      }
       console.error('❌ Error al agregar canal:', error)
       return { success: false, message: 'Error al agregar el canal' }
     } else if (data) {
@@ -212,7 +223,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ FUNCIÓN MEJORADA: Filtra duplicados antes de insertar
+  // ✅ IMPORT M3U CON VERIFICACIÓN DE DUPLICADOS
   const importM3U = async (content: string, category: string): Promise<number> => {
     const normalizedCategory = normalizeCategory(category)
     const lines = content.split('\n')
@@ -220,6 +231,14 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     let currentName = ''
     let currentLogo = ''
     let currentGroup = ''
+
+    // Obtener URLs existentes de esta categoría desde Supabase
+    const { data: existingChannels } = await supabase
+      .from('channels')
+      .select('url')
+      .eq('category', normalizedCategory)
+
+    const existingUrls = new Set(existingChannels?.map(c => c.url) || [])
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
@@ -231,12 +250,18 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         currentLogo = logoMatch ? logoMatch[1] : ''
         currentGroup = groupMatch ? groupMatch[1] : 'Importados'
       } else if (line && !line.startsWith('#')) {
-        // ✅ Verificar si ya existe antes de agregar
-        const exists = channels.some(c => c.url === line && c.category === normalizedCategory)
-        if (!exists) {
-          newChannels.push({ name: currentName, url: line, logo: currentLogo || undefined, group: currentGroup, category: normalizedCategory })
+        // Verificar si ya existe
+        if (!existingUrls.has(line)) {
+          newChannels.push({ 
+            name: currentName, 
+            url: line, 
+            logo: currentLogo || undefined, 
+            group: currentGroup, 
+            category: normalizedCategory 
+          })
+          existingUrls.add(line) // Agregar al set para evitar duplicados dentro del mismo archivo
         } else {
-          console.log('⚠️ Saltando canal duplicado:', currentName)
+          console.log('⚠️ Saltando canal duplicado:', currentName, line)
         }
         currentName = ''
         currentLogo = ''
@@ -244,21 +269,51 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (newChannels.length === 0) return 0
-
-    const channelsToInsert = newChannels.map(c => ({ ...c, owner_id: user?.id || null }))
-    const { data, error } = await supabase.from('channels').insert(channelsToInsert).select()
-    
-    if (error) {
-      console.error('❌ ERROR DE SUPABASE:', error)
+    if (newChannels.length === 0) {
+      console.log('ℹ️ No hay canales nuevos para importar')
       return 0
     }
+
+    const channelsToInsert = newChannels.map(c => ({ ...c, owner_id: user?.id || null }))
     
-    if (data) {
-      setChannels(prev => [...data.map(normalizeChannel), ...prev])
-      return data.length
+    try {
+      const { data, error } = await supabase.from('channels').insert(channelsToInsert).select()
+      
+      if (error) {
+        if (error.code === '23505') {
+          console.log('⚠️ Algunos canales ya existían')
+          // Intentar insertar uno por uno
+          let successCount = 0
+          for (const channel of channelsToInsert) {
+            const { data: singleData, error: singleError } = await supabase
+              .from('channels')
+              .insert([channel])
+              .select()
+              .single()
+            
+            if (!singleError && singleData) successCount++
+          }
+          
+          if (successCount > 0) {
+            const { data: refreshedData } = await supabase.from('channels').select('*').order('created_at', { ascending: false })
+            if (refreshedData) setChannels(refreshedData.map(normalizeChannel))
+            return successCount
+          }
+          return 0
+        }
+        console.error('❌ ERROR DE SUPABASE:', error)
+        return 0
+      }
+      
+      if (data) {
+        setChannels(prev => [...data.map(normalizeChannel), ...prev])
+        return data.length
+      }
+      return 0
+    } catch (err) {
+      console.error('❌ Error al insertar canales:', err)
+      return 0
     }
-    return 0
   }
 
   return (

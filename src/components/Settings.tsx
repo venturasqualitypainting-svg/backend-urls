@@ -68,7 +68,8 @@ export default function SettingsPanel() {
   const [checkResults, setCheckResults] = useState<StreamCheck[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const [checkTargetCategory, setCheckTargetCategory] = useState<Category>('movies')
-  const [autoDetect, setAutoDetect] = useState(true)
+  // ✅ CAMBIO CRÍTICO: autoDetect ahora empieza en FALSE
+  const [autoDetect, setAutoDetect] = useState(false)
 
   const [newMovie, setNewMovie] = useState({ 
     title: '', 
@@ -184,12 +185,10 @@ export default function SettingsPanel() {
     }
   }
 
-  // ✅ FUNCIÓN MEJORADA: Previene duplicados y limpia el input
   const handleImportCategory = async (categoryId: Category) => {
     const url = categoryUrls[categoryId]
     if (!url.trim()) return
     
-    // ✅ Prevenir múltiples clics
     if (importingCategory) return
     
     setImportingCategory(categoryId)
@@ -203,7 +202,6 @@ export default function SettingsPanel() {
           const response = await fetch(url)
           content = await response.text()
         } catch {
-          // Si no es una URL M3U válida, tratar como URL de canal individual
           const result = await addChannel({ 
             name: `Canal ${categoryId}`, 
             url: url.trim(), 
@@ -213,10 +211,9 @@ export default function SettingsPanel() {
           if (result.success) {
             setSuccess(`✅ ${result.message}`)
           } else {
-            setError(`⚠️ ${result.message}`)
+            setSuccess(`ℹ️ ${result.message}`)
           }
           
-          // ✅ Limpiar el input inmediatamente
           setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
           setImportingCategory(null)
           return
@@ -229,12 +226,11 @@ export default function SettingsPanel() {
       
       if (importedCount > 0) {
         const categoryName = categories.find(c => c.id === categoryId)?.name || categoryId
-        setSuccess(`✅ ${importedCount} canales importados en ${categoryName}`)
+        setSuccess(`✅ ${importedCount} canales nuevos importados en ${categoryName}`)
       } else {
-        setError('No se encontraron canales nuevos (posibles duplicados)')
+        setSuccess('ℹ️ No se encontraron canales nuevos (todos ya existen)')
       }
       
-      // ✅ Limpiar el input inmediatamente
       setCategoryUrls({ ...categoryUrls, [categoryId]: '' })
     } catch (err) {
       setError('Error al importar')
@@ -335,10 +331,10 @@ export default function SettingsPanel() {
         }
       }
       if (totalSaved > 0) {
-        setSuccess(`✅ ${totalSaved} streams guardados: ${categorySummary.join(', ')}`)
+        setSuccess(`✅ ${totalSaved} streams nuevos guardados: ${categorySummary.join(', ')}`)
         setCheckResults([])
         setCheckList('')
-      } else setError('No se pudieron guardar (posibles duplicados)')
+      } else setSuccess('ℹ️ No se guardaron streams nuevos (todos ya existen)')
     } catch (error) {
       console.error('Error al guardar:', error)
       setError('Error de conexión al guardar')
@@ -561,7 +557,7 @@ export default function SettingsPanel() {
 
           <div className="space-y-4">
             <h4 className="text-white font-bold text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-[#E50914]"/>Importar Contenido por Categoría (M3U)</h4>
-            <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U. El sistema detectará duplicados automáticamente.</p>
+            <p className="text-[#808080] text-sm">Selecciona la categoría y pega la URL o contenido M3U. El sistema previene duplicados automáticamente.</p>
             {categories.map((category) => {
               const Icon = category.icon
               const isImporting = importingCategory === category.id
@@ -612,13 +608,13 @@ export default function SettingsPanel() {
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" checked={autoDetect} onChange={(e) => setAutoDetect(e.target.checked)} className="w-4 h-4 accent-[#E50914]"/>
                     <div className="flex-1">
-                      <p className="text-white text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática</p>
-                      <p className="text-[#808080] text-xs">Cada canal se guardará en su categoría correspondiente</p>
+                      <p className="text-white text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-400"/>Detección automática de categorías</p>
+                      <p className="text-[#808080] text-xs">Activar para que cada canal se guarde en su categoría correspondiente según su nombre</p>
                     </div>
                   </label>
                   {!autoDetect && (
                     <div className="mt-3 pt-3 border-t border-[#3F3F3F]">
-                      <label className="text-white text-xs font-medium mb-2 block">Guardar TODO en:</label>
+                      <label className="text-white text-xs font-medium mb-2 block">Guardar TODO en categoría:</label>
                       <select value={checkTargetCategory} onChange={(e) => setCheckTargetCategory(e.target.value as Category)} className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm focus:outline-none focus:border-[#E50914]">
                         {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
                       </select>
@@ -643,7 +639,7 @@ export default function SettingsPanel() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">{result.name}</p>
-                        {result.status === 'online' && detectedCat && (
+                        {result.status === 'online' && detectedCat && autoDetect && (
                           <p className="text-xs text-purple-400 flex items-center gap-1 mt-0.5"><DetectedIcon className="w-3 h-3"/>→ {detectedCat.name}</p>
                         )}
                         <p className="text-[#808080] text-xs truncate">{result.url}</p>
@@ -658,7 +654,7 @@ export default function SettingsPanel() {
 
                 {onlineStreams.length > 0 && !isChecking && (
                   <button onClick={handleSaveWorkingStreams} disabled={isChecking} className="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-md font-medium flex items-center justify-center gap-2 disabled:opacity-70">
-                    {isChecking ? (<><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando...</>) : (<><Save className="w-5 h-5"/>Guardar {onlineStreams.length} Streams</>)}
+                    {isChecking ? (<><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>Guardando...</>) : (<><Save className="w-5 h-5"/>Guardar {onlineStreams.length} Streams Nuevos</>)}
                   </button>
                 )}
               </div>
