@@ -421,6 +421,33 @@ export default function SettingsPanel() {
                 {isAdmin && (<span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#E50914]/20 text-[#E50914] text-xs font-bold rounded-full mt-1"><Shield className="w-3 h-3" /> Administrador</span>)}
               </div>
             </div>
+          {/* ✅ DIAGNÓSTICO: Contador de canales por categoría */}
+          <div className="bg-[#1F1F1F] border border-[#2F2F2F] rounded-md p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-white font-bold text-sm">📊 Estado de Canales en Supabase</h4>
+              <button
+                onClick={async () => {
+                  await refreshData()
+                  setSuccess('✅ Datos recargados desde Supabase')
+                  setTimeout(() => setSuccess(''), 3000)
+                }}
+                className="px-3 py-1.5 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md text-xs font-bold transition-colors flex items-center gap-1"
+              >
+                🔄 Recargar Datos
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {Object.entries(categoryCounts).map(([cat, count]) => (
+                <div key={cat} className="bg-[#141414] border border-[#3F3F3F] rounded-md p-2 text-center">
+                  <p className="text-white text-lg font-bold">{count}</p>
+                  <p className="text-[#808080] text-xs capitalize">{cat}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[#808080] text-xs mt-3">
+              💡 Si los números no coinciden con lo que ves en tu celular, presiona "Recargar Datos"
+            </p>
+          </div>
             <div className="flex gap-3 w-full md:w-auto">
               <button onClick={userLogout} className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-[#2F2F2F] hover:bg-[#444444] text-white rounded-md text-sm font-medium transition-colors flex"><LogOut className="w-4 h-4" /> Cerrar Sesión</button>
               <button onClick={async () => { if (confirm('⚠️ ¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer.')) { const result = await deleteAccount(); if (result.success) alert('Cuenta eliminada exitosamente'); else alert('Error: ' + result.error) } }} className="flex-1 md:flex-none items-center justify-center gap-2 px-4 py-2 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md text-sm font-medium transition-colors flex"><Trash2 className="w-4 h-4" /> Eliminar Cuenta</button>

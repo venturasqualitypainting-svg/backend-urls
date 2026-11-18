@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useUserAuth } from './UserAuthContext'
 
@@ -54,7 +54,9 @@ interface ContentContextType {
   removeMovie: (id: string) => Promise<void>
   updateMovie: (id: string, updates: Partial<Pick<Movie, 'url' | 'episodes'>>) => Promise<void>
   importM3U: (content: string, category: string) => Promise<number>
+  refreshData: () => Promise<void>
   loading: boolean
+  categoryCounts: Record<CategoryId, number>
 }
 
 const ContentContext = createContext<ContentContextType | undefined>(undefined)
@@ -64,11 +66,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const [channels, setChannels] = useState<Channel[]>([])
   const [movies, setMovies] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
-  const busyRef = useRef(false)
-
-  useEffect(() => {
-    loadData()
-  }, [])
 
   const normalizeChannel = (c: any): Channel => ({
     id: c.id,
@@ -94,12 +91,15 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     owner_id: m.owner_id || undefined
   })
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
+      setLoading(true)
       const { data: channelsData, error: cErr } = await supabase.from('channels').select('*').order('created_at', { ascending: false })
       const { data: moviesData, error: mErr } = await supabase.from('movies').select('*').order('created_at', { ascending: false })
+
       if (cErr) console.error('Error cargando canales:', cErr)
-      if (mErr) console.error('Error cargando peliculas:', mErr)
+      if (mErr) console.error('Error cargando películas:', mErr)
+
       setChannels((channelsData || []).map(normalizeChannel))
       setMovies((moviesData || []).map(normalizeMovie))
     } catch (error) {
@@ -107,60 +107,75 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  // ✅ Cargar datos al iniciar sesión
+  useEffect(() => {
+    if (user) {
+      loadData()
+    }
+  }, [user, loadData])
+
+  // ✅ Función pública para recargar datos manualmente
+  const refreshData = async () => {
+    await loadData()
   }
 
+  // ✅ Contador de canales por categoría
+  const categoryCounts: Record<CategoryId, number> = {
+    movies: 0,
+    kids: 0,
+    deportes: 0,
+    entretenimiento: 0,
+    historia: 0,
+    premium: 0,
+    cineclasico: 0,
+    adultos: 0
+  }
+  channels.forEach(c => {
+    categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1
+  })
+
   const addChannel = async (channel: Omit<Channel, 'id'>): Promise<{ success: boolean; message: string }> => {
-    if (busyRef.current) return { success: false, message: 'Hay una operacion en curso, espera un momento' }
-    busyRef.current = true
+    const normalizedCategory = normalizeCategory(channel.category)
+    const urlHash = simpleHash(channel.url + normalizedCategory)
+    
+    const { data: existing } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('url_hash', urlHash)
+      .maybeSingle()
 
-    try {
-      const cat = normalizeCategory(channel.category)
-      const cleanUrl = channel.url.trim()
-
-      const { data: existing } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('url', cleanUrl)
-        .eq('category', cat)
-        .limit(1)
-
-      if (existing && existing.length > 0) {
-        return { success: false, message: 'Este canal ya existe en esta categoria' }
-      }
-
-      const payload = {
-        name: channel.name || 'Canal sin nombre',
-        url: cleanUrl,
-        logo: channel.logo || null,
-        group: channel.group || null,
-        category: cat,
-        owner_id: user?.id || null
-      }
-
-      const { data, error } = await supabase.from('channels').insert([payload]).select().single()
-
-      if (error) {
-        if (error.code === '23505') return { success: false, message: 'Este canal ya existe' }
-        console.error('Error al agregar canal:', error)
-        return { success: false, message: 'Error al agregar el canal' }
-      }
-
-      if (data) {
-        const item = normalizeChannel(data)
-        setChannels(prev => prev.some(c => c.id === item.id) ? prev : [item, ...prev])
-        return { success: true, message: 'Canal agregado exitosamente' }
-      }
-
-      return { success: false, message: 'Error desconocido' }
-    } finally {
-      busyRef.current = false
+    if (existing) {
+      return { success: false, message: 'Este canal ya existe en esta categoría' }
     }
+
+    const normalized = {
+      name: channel.name,
+      url: channel.url,
+      logo: channel.logo || null,
+      group: channel.group || null,
+      category: normalizedCategory,
+      url_hash: urlHash,
+      owner_id: user?.id || null
+    }
+
+    const { data, error } = await supabase.from('channels').insert([normalized]).select().single()
+    
+    if (error) {
+      if (error.code === '23505') return { success: false, message: 'Este canal ya existe' }
+      console.error('❌ Error al agregar canal:', error)
+      return { success: false, message: 'Error al agregar el canal' }
+    } else if (data) {
+      setChannels(prev => [normalizeChannel(data), ...prev])
+      return { success: true, message: 'Canal agregado exitosamente' }
+    }
+    
+    return { success: false, message: 'Error desconocido' }
   }
 
   const removeChannel = async (id: string) => {
     if (!id) return
-    const channel = channels.find(c => c.id === id)
-    if (channel && channel.owner_id && channel.owner_id !== user?.id) return
     const { error } = await supabase.from('channels').delete().eq('id', id)
     if (!error) setChannels(prev => prev.filter(c => c.id !== id))
   }
@@ -178,121 +193,139 @@ export function ContentProvider({ children }: { children: ReactNode }) {
       episodes: movie.episodes || null,
       owner_id: user?.id || null
     }
+
     const { data, error } = await supabase.from('movies').insert([movieData]).select().single()
-    if (error) { console.error('Error al guardar:', error); throw error }
-    if (data) setMovies(prev => [normalizeMovie(data), ...prev])
+
+    if (error) {
+      console.error('❌ ERROR DE SUPABASE AL GUARDAR:', error)
+      throw error
+    } else if (data) {
+      setMovies(prev => [normalizeMovie(data), ...prev])
+    }
   }
 
   const removeMovie = async (id: string) => {
     if (!id) return
-    const movie = movies.find(m => m.id === id)
-    if (movie && movie.owner_id && movie.owner_id !== user?.id) return
     const { error } = await supabase.from('movies').delete().eq('id', id)
     if (!error) setMovies(prev => prev.filter(m => m.id !== id))
   }
 
   const updateMovie = async (id: string, updates: Partial<Pick<Movie, 'url' | 'episodes'>>) => {
     if (!id) return
-    const movie = movies.find(m => m.id === id)
-    if (movie && movie.owner_id && movie.owner_id !== user?.id) return
-
     const updateData: any = {}
     if (updates.url !== undefined) updateData.url = updates.url
     if (updates.episodes !== undefined) updateData.episodes = updates.episodes
     if (Object.keys(updateData).length === 0) return
 
     const { data, error } = await supabase.from('movies').update(updateData).eq('id', id).select().single()
-    if (error) { console.error('Error al actualizar:', error); throw error }
-    if (data) setMovies(prev => prev.map(m => m.id === id ? normalizeMovie(data) : m))
+
+    if (error) {
+      console.error('❌ ERROR AL ACTUALIZAR:', error)
+      throw error
+    } else if (data) {
+      setMovies(prev => prev.map(m => m.id === id ? normalizeMovie(data) : m))
+    }
   }
 
   const importM3U = async (content: string, category: string): Promise<number> => {
-    if (busyRef.current) return 0
-    busyRef.current = true
+    const normalizedCategory = normalizeCategory(category)
+    const lines = content.split('\n')
+    const newChannels: any[] = []
+    let currentName = ''
+    let currentLogo = ''
+    let currentGroup = ''
+
+    const { data: existingChannels } = await supabase
+      .from('channels')
+      .select('url_hash')
+      .eq('category', normalizedCategory)
+
+    const existingHashes = new Set(existingChannels?.map(c => c.url_hash) || [])
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (line.startsWith('#EXTINF:')) {
+        const nameMatch = line.match(/,([^,]+)$/i)
+        const logoMatch = line.match(/tvg-logo="([^"]*)"/i)
+        const groupMatch = line.match(/group-title="([^"]*)"/i)
+        currentName = nameMatch ? nameMatch[1].trim() : 'Canal sin nombre'
+        currentLogo = logoMatch ? logoMatch[1] : ''
+        currentGroup = groupMatch ? groupMatch[1] : 'Importados'
+      } else if (line && !line.startsWith('#')) {
+        const urlHash = simpleHash(line + normalizedCategory)
+        
+        if (!existingHashes.has(urlHash)) {
+          newChannels.push({ 
+            name: currentName, 
+            url: line, 
+            logo: currentLogo || undefined, 
+            group: currentGroup, 
+            category: normalizedCategory,
+            url_hash: urlHash,
+            owner_id: user?.id || null
+          })
+          existingHashes.add(urlHash)
+        }
+        currentName = ''
+        currentLogo = ''
+        currentGroup = ''
+      }
+    }
+
+    if (newChannels.length === 0) return 0
 
     try {
-      const cat = normalizeCategory(category)
-      const lines = content.split('\n')
-      const pending: any[] = []
-      const seenUrls = new Set<string>()
-
-      let currentName = ''
-      let currentLogo = ''
-      let currentGroup = ''
-
-      const { data: existingChannels } = await supabase
-        .from('channels')
-        .select('url')
-        .eq('category', cat)
-
-      const existing = existingChannels as any[] | null
-      if (existing) existing.forEach(c => seenUrls.add(c.url))
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim()
-        if (line.startsWith('#EXTINF:')) {
-          const nameMatch = line.match(/,([^,]+)$/i)
-          const logoMatch = line.match(/tvg-logo="([^"]*)"/i)
-          const groupMatch = line.match(/group-title="([^"]*)"/i)
-          currentName = nameMatch ? nameMatch[1].trim() : 'Canal sin nombre'
-          currentLogo = logoMatch ? logoMatch[1] : ''
-          currentGroup = groupMatch ? groupMatch[1] : 'Importados'
-        } else if (line && !line.startsWith('#')) {
-          if (!seenUrls.has(line)) {
-            seenUrls.add(line)
-            pending.push({
-              name: currentName || 'Canal sin nombre',
-              url: line,
-              logo: currentLogo || null,
-              group: currentGroup || null,
-              category: cat,
-              owner_id: user?.id || null
-            })
-          }
-          currentName = ''
-          currentLogo = ''
-          currentGroup = ''
-        }
-      }
-
-      if (pending.length === 0) return 0
-
-      const { data, error } = await supabase.from('channels').insert(pending).select()
-
+      const { data, error } = await supabase.from('channels').insert(newChannels).select()
+      
       if (error) {
         if (error.code === '23505') {
-          let saved = 0
-          for (const item of pending) {
-            const { error: singleError } = await supabase.from('channels').insert([item])
-            if (!singleError) saved++
+          let successCount = 0
+          for (const channel of newChannels) {
+            const { data: singleData, error: singleError } = await supabase
+              .from('channels')
+              .insert([channel])
+              .select()
+              .single()
+            if (!singleError && singleData) successCount++
           }
-          await loadData()
-          return saved
+          if (successCount > 0) {
+            await loadData()
+            return successCount
+          }
+          return 0
         }
-        console.error('Error al importar:', error)
         return 0
       }
-
+      
       if (data) {
-        const items = data.map(normalizeChannel)
-        setChannels(prev => {
-          const ids = new Set(prev.map(c => c.id))
-          const fresh = items.filter(c => !ids.has(c.id))
-          return [...fresh, ...prev]
-        })
+        setChannels(prev => [...data.map(normalizeChannel), ...prev])
         return data.length
       }
       return 0
-    } finally {
-      busyRef.current = false
+    } catch (err) {
+      console.error('❌ Error al insertar canales:', err)
+      return 0
     }
   }
 
   return (
-    <ContentContext.Provider value={{ channels, movies, addChannel, removeChannel, addMovie, removeMovie, updateMovie, importM3U, loading }}>
+    <ContentContext.Provider value={{ 
+      channels, movies, addChannel, removeChannel, addMovie, removeMovie, 
+      updateMovie, importM3U, refreshData, loading, categoryCounts 
+    }}>
       {children}
     </ContentContext.Provider>
   )
+}
+
+const simpleHash = (str: string): string => {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  return Math.abs(hash).toString(36)
 }
 
 export function useContent() {
