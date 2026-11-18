@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { useUserAuth } from './UserAuthContext'
 
@@ -91,37 +91,48 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     owner_id: m.owner_id || undefined
   })
 
-  const loadData = useCallback(async () => {
+  const loadData = async () => {
+    console.log('🔄 Cargando datos desde Supabase...')
     try {
       setLoading(true)
       const { data: channelsData, error: cErr } = await supabase.from('channels').select('*').order('created_at', { ascending: false })
       const { data: moviesData, error: mErr } = await supabase.from('movies').select('*').order('created_at', { ascending: false })
 
-      if (cErr) console.error('Error cargando canales:', cErr)
-      if (mErr) console.error('Error cargando películas:', mErr)
+      if (cErr) console.error('❌ Error cargando canales:', cErr)
+      if (mErr) console.error('❌ Error cargando películas:', mErr)
 
-      setChannels((channelsData || []).map(normalizeChannel))
-      setMovies((moviesData || []).map(normalizeMovie))
+      const normalizedChannels = (channelsData || []).map(normalizeChannel)
+      const normalizedMovies = (moviesData || []).map(normalizeMovie)
+
+      console.log(`✅ Canales cargados: ${normalizedChannels.length}`)
+      console.log(`✅ Películas cargadas: ${normalizedMovies.length}`)
+
+      setChannels(normalizedChannels)
+      setMovies(normalizedMovies)
     } catch (error) {
-      console.error('Error cargando datos:', error)
+      console.error('❌ Error cargando datos:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  // ✅ Cargar datos SIEMPRE que se monta el componente
+  useEffect(() => {
+    loadData()
   }, [])
 
-  // ✅ Cargar datos al iniciar sesión
+  // ✅ Recargar datos cuando cambia el usuario
   useEffect(() => {
     if (user) {
       loadData()
     }
-  }, [user, loadData])
+  }, [user])
 
-  // ✅ Función pública para recargar datos manualmente
   const refreshData = async () => {
+    console.log('🔄 Recargando datos manualmente...')
     await loadData()
   }
 
-  // ✅ Contador de canales por categoría
   const categoryCounts: Record<CategoryId, number> = {
     movies: 0,
     kids: 0,
