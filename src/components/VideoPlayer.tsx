@@ -101,8 +101,13 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   }
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullscreen(true) } 
-    else { document.exitFullscreen(); setIsFullscreen(false) }
+    if (!document.fullscreenElement) { 
+      if (containerRef.current?.requestFullscreen) containerRef.current.requestFullscreen()
+      setIsFullscreen(true) 
+    } else { 
+      if (document.exitFullscreen) document.exitFullscreen()
+      setIsFullscreen(false) 
+    }
   }
 
   const handleCast = async () => {
@@ -148,7 +153,7 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   const handleMouseMove = () => {
     setShowControls(true)
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
-    controlsTimeoutRef.current = setTimeout(() => { if (isPlaying) setShowControls(false) }, 3000)
+    controlsTimeoutRef.current = setTimeout(() => { if (isPlaying) setShowControls(false) }, 4000)
   }
 
   const formatTime = (seconds: number) => {
@@ -159,40 +164,79 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
   }
 
   return (
-    <div ref={containerRef} className="fixed inset-0 z-[9999] bg-black flex items-center justify-center" onMouseMove={handleMouseMove} onClick={() => setShowControls(!showControls)}>
+    // ✅ SOLUCIÓN 3 y 4: w-screen h-[100dvh] evita que la pantalla cambie de tamaño o tenga bordes al girar
+    <div 
+      ref={containerRef} 
+      className="fixed inset-0 z-[9999] bg-black w-screen h-[100dvh] flex items-center justify-center" 
+      onMouseMove={handleMouseMove}
+      onClick={() => setShowControls(!showControls)}
+    >
+      {/* ✅ SOLUCIÓN 3: object-contain asegura que el video nunca deformará la pantalla */}
       <video ref={videoRef} className="w-full h-full object-contain" muted={isMuted} playsInline x-webkit-airplay="allow" />
 
-      <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      {/* Botones de canal FLOTANTES para celular (fáciles de alcanzar con el pulgar) */}
+      {channels.length > 1 && (
+        <>
+          <button 
+            onClick={(e) => { e.stopPropagation(); changeChannel('prev') }} 
+            className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 p-4 bg-black/50 hover:bg-black/70 rounded-full text-white z-50 transition-all active:scale-95"
+          >
+            <SkipBack className="w-8 h-8" />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); changeChannel('next') }} 
+            className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 p-4 bg-black/50 hover:bg-black/70 rounded-full text-white z-50 transition-all active:scale-95"
+          >
+            <SkipForward className="w-8 h-8" />
+          </button>
+        </>
+      )}
+
+      <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/60 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {/* Barra Superior */}
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors"><X className="w-6 h-6 text-white"/></button>
-            <h3 className="text-white text-lg font-bold truncate max-w-md">{title} {isLive && <span className="text-[#E50914] text-sm ml-2 font-bold">EN VIVO</span>}</h3>
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <button onClick={(e) => { e.stopPropagation(); onClose() }} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors flex-shrink-0">
+              <X className="w-6 h-6 text-white"/>
+            </button>
+            <h3 className="text-white text-sm md:text-lg font-bold truncate">{title} {isLive && <span className="text-[#E50914] text-xs md:text-sm ml-2 font-bold">EN VIVO</span>}</h3>
           </div>
           
-          {/* ✅ BOTONES DE CAMBIAR CANAL RESTAURADOS */}
+          {/* Botones de canal para ESCRITORIO (arriba a la derecha) */}
           {channels.length > 1 && (
-            <div className="flex items-center gap-2">
-              <button onClick={() => changeChannel('prev')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal anterior">
+            <div className="hidden md:flex items-center gap-2">
+              <button onClick={(e) => { e.stopPropagation(); changeChannel('prev') }} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal anterior">
                 <SkipBack className="w-5 h-5 text-white"/>
               </button>
-              <button onClick={() => changeChannel('next')} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal siguiente">
+              <button onClick={(e) => { e.stopPropagation(); changeChannel('next') }} className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition-colors" title="Canal siguiente">
                 <SkipForward className="w-5 h-5 text-white"/>
               </button>
             </div>
           )}
         </div>
 
+        {/* Botón Play Central */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {!isPlaying && (
-            <button onClick={togglePlay} className="p-6 bg-black/50 hover:bg-black/70 rounded-full transition-colors pointer-events-auto">
+            <button onClick={(e) => { e.stopPropagation(); togglePlay() }} className="p-6 bg-black/50 hover:bg-black/70 rounded-full transition-colors pointer-events-auto">
               <Play className="w-16 h-16 text-white fill-white"/>
             </button>
           )}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4">
+        {/* Barra Inferior de Controles */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6">
           <div className="mb-4">
-            <input type="range" min="0" max={duration || 0} value={currentTime} onChange={seek} disabled={isLive} className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914] disabled:opacity-30" style={{ background: isLive ? '#4B5563' : `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, #4B5563 ${(currentTime / (duration || 1)) * 100}%, #4B5563 100%)` }} />
+            <input 
+              type="range" 
+              min="0" 
+              max={duration || 0} 
+              value={currentTime} 
+              onChange={seek} 
+              disabled={isLive} 
+              className="w-full h-1 md:h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#E50914] disabled:opacity-30" 
+              style={{ background: isLive ? '#4B5563' : `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, #4B5563 ${(currentTime / (duration || 1)) * 100}%, #4B5563 100%)` }} 
+            />
             <div className="flex justify-between text-xs text-gray-400 mt-1">
               <span>{formatTime(currentTime)}</span>
               <span>{isLive ? 'EN VIVO' : formatTime(duration)}</span>
@@ -200,19 +244,25 @@ export default function VideoPlayer({ url, title, poster, startTime = 0, isLive 
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={togglePlay} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isPlaying ? <Pause className="w-6 h-6 text-white"/> : <Play className="w-6 h-6 text-white fill-white"/>}</button>
+            <div className="flex items-center gap-2 md:gap-4">
+              <button onClick={(e) => { e.stopPropagation(); togglePlay() }} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                {isPlaying ? <Pause className="w-6 h-6 md:w-8 md:h-8 text-white"/> : <Play className="w-6 h-6 md:w-8 md:h-8 text-white fill-white"/>}
+              </button>
               {!isLive && (
                 <>
-                  <button onClick={() => skip(-10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
-                  <button onClick={() => skip(10)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
+                  <button onClick={(e) => { e.stopPropagation(); skip(-10) }} className="hidden md:block p-2 hover:bg-white/10 rounded-full transition-colors"><SkipBack className="w-5 h-5 text-white"/></button>
+                  <button onClick={(e) => { e.stopPropagation(); skip(10) }} className="hidden md:block p-2 hover:bg-white/10 rounded-full transition-colors"><SkipForward className="w-5 h-5 text-white"/></button>
                 </>
               )}
-              <button onClick={toggleMute} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isMuted ? <VolumeX className="w-6 h-6 text-white"/> : <Volume2 className="w-6 h-6 text-white"/>}</button>
+              <button onClick={(e) => { e.stopPropagation(); toggleMute() }} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                {isMuted ? <VolumeX className="w-6 h-6 text-white"/> : <Volume2 className="w-6 h-6 text-white"/>}
+              </button>
             </div>
-            <div className="flex items-center gap-3">
-              <button onClick={handleCast} className={`p-2 hover:bg-white/10 rounded-full transition-colors ${isCasting ? 'text-[#E50914]' : 'text-white'}`} title="Cast"><Cast className="w-6 h-6"/></button>
-              <button onClick={toggleFullscreen} className="p-2 hover:bg-white/10 rounded-full transition-colors">{isFullscreen ? <Minimize className="w-6 h-6 text-white"/> : <Maximize className="w-6 h-6 text-white"/>}</button>
+            <div className="flex items-center gap-2 md:gap-4">
+              <button onClick={(e) => { e.stopPropagation(); handleCast() }} className={`p-2 hover:bg-white/10 rounded-full transition-colors ${isCasting ? 'text-[#E50914]' : 'text-white'}`} title="Cast"><Cast className="w-6 h-6"/></button>
+              <button onClick={(e) => { e.stopPropagation(); toggleFullscreen() }} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                {isFullscreen ? <Minimize className="w-6 h-6 text-white"/> : <Maximize className="w-6 h-6 text-white"/>}
+              </button>
             </div>
           </div>
         </div>
