@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, User as UserIcon, Eye, EyeOff, AlertCircle, AlertTriangle } from 'lucide-react'
+import { Loader2, User as UserIcon, Eye, EyeOff, AlertCircle, ArrowLeft, Key } from 'lucide-react'
+import { supabase } from './lib/supabase'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { UserProvider } from './context/UserContext'
 import { ContentProvider, useContent } from './context/ContentContext'
@@ -25,12 +26,23 @@ type Section = 'movieseries' | 'deportes' | 'kids' | 'entretenimiento' | 'histor
 function AuthWall() {
   const { login, register } = useUserAuth()
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  
+  // Login/Register states
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [authError, setAuthError] = useState('')
   const [isAuthLoading, setIsAuthLoading] = useState(false)
+
+  // Reset Password states
+  const [resetEmail, setResetEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [resetStatus, setResetStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [resetMessage, setResetMessage] = useState('')
 
   const handleUserAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,12 +51,100 @@ function AuthWall() {
     if (authMode === 'login') {
       const result = await login(email, password)
       if (!result.success) setAuthError(result.error || 'Error al iniciar sesión')
+      else { setEmail(''); setPassword('') }
     } else {
       if (!name.trim()) { setAuthError('El nombre es obligatorio'); setIsAuthLoading(false); return }
       const result = await register(email, password, name)
       if (!result.success) setAuthError(result.error || 'Error al crear la cuenta')
+      else { setEmail(''); setPassword(''); setName('') }
     }
     setIsAuthLoading(false)
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetMessage('')
+    if (newPassword !== confirmPassword) {
+      setResetStatus('error')
+      setResetMessage('Las contraseñas no coinciden')
+      return
+    }
+    if (newPassword.length < 6) {
+      setResetStatus('error')
+      setResetMessage('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+    setResetStatus('loading')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('email', resetEmail.toLowerCase().trim())
+        .select()
+      
+      if (error || !data || data.length === 0) {
+        setResetStatus('error')
+        setResetMessage('No se encontró una cuenta con ese correo electrónico.')
+      } else {
+        setResetStatus('success')
+        setResetMessage('✅ Contraseña actualizada correctamente. Ahora puedes iniciar sesión.')
+        setResetEmail('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setTimeout(() => {
+          setShowResetPassword(false)
+          setResetStatus('idle')
+        }, 3000)
+      }
+    } catch (err) {
+      setResetStatus('error')
+      setResetMessage('Error de conexión al restablecer la contraseña.')
+    }
+  }
+
+  if (showResetPassword) {
+    return (
+      <div className="w-full">
+        <button 
+          onClick={() => { setShowResetPassword(false); setResetStatus('idle'); setResetMessage('') }}
+          className="flex items-center gap-2 text-[#808080] hover:text-white mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Volver al inicio de sesión
+        </button>
+        <div className="flex items-center justify-center mb-6">
+          <div className="w-16 h-16 bg-[#E50914] rounded-full flex items-center justify-center">
+            <Key className="w-8 h-8 text-white" />
+          </div>
+        </div>
+        <h3 className="text-2xl font-bold text-white text-center mb-2">Restablecer Contraseña</h3>
+        <p className="text-[#808080] text-center text-sm mb-6">Ingresa tu correo y una nueva contraseña.</p>
+        
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs text-[#808080]">Correo Electrónico</label>
+            <input type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} placeholder="tu@email.com" className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none" required />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[#808080]">Nueva Contraseña</label>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none" required minLength={6} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[#808080]">Confirmar Nueva Contraseña</label>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 bg-[#333333] border border-[#444444] rounded-md text-white text-sm focus:border-[#E50914] focus:outline-none" required minLength={6} />
+          </div>
+          
+          {resetMessage && (
+            <div className={`flex items-center gap-2 text-sm rounded-md p-3 ${resetStatus === 'success' ? 'text-green-400 bg-green-500/10 border border-green-500/30' : 'text-[#E50914] bg-[#E50914]/10 border border-[#E50914]/30'}`}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {resetMessage}
+            </div>
+          )}
+          
+          <button type="submit" disabled={resetStatus === 'loading'} className="w-full py-3 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-bold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {resetStatus === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Restablecer Contraseña'}
+          </button>
+        </form>
+      </div>
+    )
   }
 
   return (
@@ -75,46 +175,21 @@ function AuthWall() {
           </div>
         </div>
         {authError && (<div className="flex items-center gap-2 text-[#E50914] text-sm bg-[#E50914]/10 border border-[#E50914]/30 rounded-md p-3"><AlertCircle className="w-4 h-4" /> {authError}</div>)}
+        
         <button type="submit" disabled={isAuthLoading} className="w-full py-3 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-bold text-sm transition-colors disabled:opacity-50">
           {isAuthLoading ? 'Procesando...' : authMode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
         </button>
       </form>
-      <div className="mt-6 text-center">
-        <button type="button" onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); setEmail(''); setPassword(''); setName('') }} className="text-[#808080] hover:text-white text-sm transition-colors">
+      
+      <div className="mt-6 text-center space-y-3">
+        {authMode === 'login' && (
+          <button type="button" onClick={() => setShowResetPassword(true)} className="text-[#808080] hover:text-[#E50914] text-sm transition-colors block w-full">
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
+        <button type="button" onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); setEmail(''); setPassword(''); setName('') }} className="text-[#808080] hover:text-white text-sm transition-colors block w-full">
           {authMode === 'login' ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
         </button>
-      </div>
-    </div>
-  )
-}
-
-function AgeVerificationModal({ onConfirm, onCancel }: { onConfirm: () => void, onCancel: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-      <div className="bg-[#181818] rounded-lg shadow-2xl border border-[#E50914]/50 w-full max-w-md p-8">
-        <div className="flex items-center justify-center mb-6">
-          <div className="w-20 h-20 bg-[#E50914]/20 rounded-full flex items-center justify-center">
-            <AlertTriangle className="w-12 h-12 text-[#E50914]" />
-          </div>
-        </div>
-        <h2 className="text-2xl font-bold text-white text-center mb-4">Verificación de Edad</h2>
-        <p className="text-[#B3B3B3] text-center mb-6">
-          Esta sección contiene contenido exclusivo para mayores de 18 años. Al continuar, confirmas que eres mayor de edad.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 bg-[#2F2F2F] hover:bg-[#3F3F3F] text-white rounded-md font-medium transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-3 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md font-medium transition-colors"
-          >
-            Soy Mayor de 18
-          </button>
-        </div>
       </div>
     </div>
   )
@@ -128,19 +203,11 @@ function AppContent() {
   const [currentStream, setCurrentStream] = useState<{ url: string; title: string; poster?: string; startTime?: number; index?: number; isLive?: boolean } | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
-  const [showAgeVerification, setShowAgeVerification] = useState(false)
-  const [pendingAdultAccess, setPendingAdultAccess] = useState(false)
 
   const getCurrentCategoryChannels = () => {
     const categoryMap: Record<string, any> = { 
-      'movieseries': 'movies', 
-      'deportes': 'deportes', 
-      'kids': 'kids', 
-      'entretenimiento': 'entretenimiento', 
-      'historia': 'historia', 
-      'premium': 'premium', 
-      'cineclasico': 'cineclasico',
-      'adultos': 'adultos'
+      'movieseries': 'movies', 'deportes': 'deportes', 'kids': 'kids', 'entretenimiento': 'entretenimiento', 
+      'historia': 'historia', 'premium': 'premium', 'cineclasico': 'cineclasico', 'adultos': 'adultos'
     }
     const category = categoryMap[activeSection] || 'movies'
     return channels.filter((c: any) => c.category === category).map((c: any) => ({ url: c.url, title: c.name }))
@@ -160,29 +227,6 @@ function AppContent() {
       setActiveSection('kids')
     }
   }, [currentProfile, activeSection])
-
-  const handleSectionChange = (section: Section) => {
-    if (section === 'adultos' && !localStorage.getItem('tunetv_adult_verified')) {
-      setPendingAdultAccess(true)
-      setShowAgeVerification(true)
-    } else {
-      setActiveSection(section)
-    }
-  }
-
-  const handleAgeConfirm = () => {
-    localStorage.setItem('tunetv_adult_verified', 'true')
-    setShowAgeVerification(false)
-    if (pendingAdultAccess) {
-      setActiveSection('adultos')
-      setPendingAdultAccess(false)
-    }
-  }
-
-  const handleAgeCancel = () => {
-    setShowAgeVerification(false)
-    setPendingAdultAccess(false)
-  }
 
   if (loading) {
     return (<div className="min-h-screen bg-[#141414] flex items-center justify-center"><Loader2 className="w-10 h-10 text-[#E50914] animate-spin" /></div>)
@@ -204,7 +248,7 @@ function AppContent() {
     <div className="min-h-screen bg-[#141414] text-[#e5e5e5]">
       <Header 
         activeSection={activeSection} 
-        setActiveSection={handleSectionChange}
+        setActiveSection={setActiveSection} 
         setShowShareModal={setShowShareModal}
         scrolled={scrolled}
         currentProfile={currentProfile}
@@ -212,8 +256,6 @@ function AppContent() {
       />
 
       <div className="h-16 md:h-20"/>
-
-      {showAgeVerification && <AgeVerificationModal onConfirm={handleAgeConfirm} onCancel={handleAgeCancel} />}
 
       <AnimatePresence>
         {currentStream && (
