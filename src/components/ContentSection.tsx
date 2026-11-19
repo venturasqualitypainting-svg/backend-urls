@@ -14,10 +14,9 @@ interface ContentSectionProps {
 
 export default function ContentSection({ onPlay, title, icon: Icon, iconColor, category }: ContentSectionProps) {
   const { isUserAdmin } = useUserAuth()
-  const { channels, movies, loading, refreshData } = useContent()
+  const { channels, movies, loading, refreshData, removeChannel } = useContent()
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Filtrar usando la categoría ya normalizada a minúsculas
   const categoryChannels = channels.filter(c => c.category === category)
   const categoryMovies = movies.filter(m => m.category === category)
 
@@ -84,9 +83,9 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
           {isUserAdmin && (
             <button 
               onClick={refreshData} 
-              className="px-4 py-2.5 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md text-sm font-bold transition-colors"
+              className="px-4 py-2.5 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md text-sm font-bold transition-colors flex items-center gap-2"
             >
-              🔄 Forzar Recarga
+              🔄 Recargar Datos
             </button>
           )}
         </div>
@@ -98,8 +97,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
             <p className="text-[#808080] text-lg mb-2">No hay contenidos en esta categoría</p>
             {channels.length === 0 && (
               <p className="text-[#E50914] text-sm font-bold mt-2">
-                ⚠️ La base de datos está devolviendo 0 canales en total. 
-                <br/>Presiona F12, ve a "Console" y busca el mensaje "✅ Canales cargados:".
+                ⚠️ La base de datos está devolviendo 0 canales en total.
               </p>
             )}
           </div>
@@ -119,6 +117,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                 isLive={item.type === 'channel'}
                 onPlay={() => onPlay(item.url, item.title, index)}
                 isAdmin={isUserAdmin}
+                onDelete={isUserAdmin && item.type === 'channel' ? () => removeChannel(item.id) : undefined}
                 index={index}
               />
             ))}
