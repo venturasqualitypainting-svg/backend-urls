@@ -1,3 +1,4 @@
+// src/context/ContentContext.tsx - Asegurar que updateMovie funcione correctamente
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -18,6 +19,9 @@ export interface Movie {
   description?: string
   category: string
   genre?: string
+  rating?: number
+  year?: number
+  episodes?: { title: string; url: string }[]
 }
 
 interface ContentContextType {
@@ -28,6 +32,9 @@ interface ContentContextType {
   addChannel: (channel: Omit<Channel, 'id'>) => Promise<{ success: boolean; message: string }>
   removeChannel: (id: string) => Promise<void>
   updateChannel: (id: string, updates: Partial<Pick<Channel, 'url' | 'group' | 'name'>>) => Promise<{ success: boolean; message: string }>
+  addMovie: (movie: Omit<Movie, 'id'>) => Promise<void>
+  removeMovie: (id: string) => Promise<void>
+  updateMovie: (id: string, updates: Partial<Movie>) => Promise<void>
   importM3U: (content: string, category: string) => Promise<number>
 }
 
@@ -41,8 +48,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const loadData = async () => {
     try {
       setLoading(true)
-      console.log('🔄 Cargando datos desde Supabase...')
-      
       const { data: channelsData, error: cErr } = await supabase.from('channels').select('*')
       const { data: moviesData, error: mErr } = await supabase.from('movies').select('*')
 
@@ -58,9 +63,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         ...m,
         category: (m.category || 'movies').toLowerCase().trim()
       }))
-
-      console.log(`✅ Canales cargados: ${normalizedChannels.length}`)
-      console.log(`✅ Películas cargadas: ${normalizedMovies.length}`)
 
       setChannels(normalizedChannels)
       setMovies(normalizedMovies)
@@ -98,7 +100,6 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ✅ NUEVA FUNCIÓN: Actualizar URL, grupo o nombre del canal
   const updateChannel = async (id: string, updates: Partial<Pick<Channel, 'url' | 'group' | 'name'>>) => {
     if (!id) return { success: false, message: 'ID inválido' }
     
@@ -129,6 +130,51 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
 
     return { success: false, message: 'Error desconocido' }
+  }
+
+  const addMovie = async (movie: Omit<Movie, 'id'>) => {
+    const { data, error } = await supabase.from('movies').insert([movie]).select().single()
+    if (error) {
+      console.error('❌ Error al agregar película:', error)
+      throw error
+    }
+    if (data) setMovies(prev => [data, ...prev])
+  }
+
+  const removeMovie = async (id: string) => {
+    if (!id) return
+    const { error } = await supabase.from('movies').delete().eq('id', id)
+    if (!error) setMovies(prev => prev.filter(m => m.id !== id))
+  }
+
+  // ✅ FUNCIÓN ACTUALIZADA: Permite editar URL, poster, título, descripción y episodios
+  const updateMovie = async (id: string, updates: Partial<Movie>) => {
+    if (!id) return
+    
+    const updateData: any = {}
+    if (updates.url !== undefined) updateData.url = updates.url
+    if (updates.title !== undefined) updateData.title = updates.title
+    if (updates.description !== undefined) updateData.description = updates.description
+    if (updates.poster !== undefined) updateData.poster = updates.poster || null
+    if (updates.episodes !== undefined) updateData.episodes = updates.episodes
+
+    if (Object.keys(updateData).length === 0) return
+
+    const { data, error } = await supabase
+      .from('movies')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error al actualizar película:', error)
+      throw error
+    }
+
+    if (data) {
+      setMovies(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))
+    }
   }
 
   const importM3U = async (content: string, category: string) => {
@@ -180,7 +226,9 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   return (
     <ContentContext.Provider value={{ 
       channels, movies, loading, refreshData: loadData, 
-      addChannel, removeChannel, updateChannel, importM3U 
+      addChannel, removeChannel, updateChannel,
+      addMovie, removeMovie, updateMovie,
+      importM3U 
     }}>
       {children}
     </ContentContext.Provider>

@@ -5,44 +5,58 @@ import { supabase } from '../lib/supabase'
 interface User {
   id: string
   email: string
-  name?: string
+  name: string
 }
 
 interface UserAuthContextType {
   user: User | null
   loading: boolean
+  isUserAdmin: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   deleteAccount: () => Promise<{ success: boolean; error?: string }>
-  isUserAdmin: boolean
 }
 
 const UserAuthContext = createContext<UserAuthContextType | undefined>(undefined)
+
+const ADMIN_EMAIL = 'mistraviesos@hotmail.com'
 
 export function UserAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('tunetv_user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const checkUser = async () => {
+      const savedUser = localStorage.getItem('tunetv_user')
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser)
+          setUser(parsed)
+        } catch (e) {
+          localStorage.removeItem('tunetv_user')
+        }
+      }
+      setLoading(false)
     }
-    setLoading(false)
+    checkUser()
   }, [])
+
+  // ✅ CRITICAL: Explicitly and safely check for admin email
+  const isUserAdmin = user?.email?.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase()
 
   const login = async (email: string, password: string) => {
     try {
+      const normalizedEmail = email.toLowerCase().trim()
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('email', email.toLowerCase().trim())
+        .eq('email', normalizedEmail)
         .eq('password', password)
         .single()
 
       if (error || !data) {
-        return { success: false, error: 'Email o contraseña incorrectos' }
+        return { success: false, error: 'Credenciales incorrectas' }
       }
 
       const userData = { id: data.id, email: data.email, name: data.name }
@@ -50,29 +64,21 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('tunetv_user', JSON.stringify(userData))
       return { success: true }
     } catch (err) {
-      console.error('Error en login:', err)
       return { success: false, error: 'Error de conexión' }
     }
   }
 
   const register = async (email: string, password: string, name: string) => {
     try {
+      const normalizedEmail = email.toLowerCase().trim()
       const { data, error } = await supabase
         .from('users')
-        .insert([{ 
-          email: email.toLowerCase().trim(), 
-          password, 
-          name: name.trim() 
-        }])
+        .insert([{ email: normalizedEmail, password, name }])
         .select()
         .single()
 
       if (error) {
-        if (error.code === '23505') {
-          return { success: false, error: 'Este email ya está registrado' }
-        }
-        console.error('Error al registrar:', error)
-        return { success: false, error: 'Error al crear la cuenta' }
+        return { success: false, error: 'El correo ya está registrado o hubo un error' }
       }
 
       const userData = { id: data.id, email: data.email, name: data.name }
@@ -80,36 +86,30 @@ export function UserAuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('tunetv_user', JSON.stringify(userData))
       return { success: true }
     } catch (err) {
-      console.error('Error en register:', err)
       return { success: false, error: 'Error de conexión' }
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null)
     localStorage.removeItem('tunetv_user')
   }
 
   const deleteAccount = async () => {
-    if (!user) return { success: false, error: 'No hay usuario logueado' }
+    if (!user) return { success: false, error: 'No hay usuario' }
     try {
       const { error } = await supabase.from('users').delete().eq('id', user.id)
-      if (error) {
-        return { success: false, error: 'Error al eliminar la cuenta' }
-      }
-      logout()
+      if (error) return { success: false, error: error.message }
+      setUser(null)
+      localStorage.removeItem('tunetv_user')
       return { success: true }
     } catch (err) {
-      console.error('Error al eliminar cuenta:', err)
       return { success: false, error: 'Error de conexión' }
     }
   }
 
-  // 🚨 HARDCODED ADMIN EMAIL
-  const isUserAdmin = user?.email === 'mistraviesos@hotmail.com'
-
   return (
-    <UserAuthContext.Provider value={{ user, loading, login, register, logout, deleteAccount, isUserAdmin }}>
+    <UserAuthContext.Provider value={{ user, loading, isUserAdmin, login, register, logout, deleteAccount }}>
       {children}
     </UserAuthContext.Provider>
   )

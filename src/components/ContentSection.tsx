@@ -1,5 +1,6 @@
+// src/components/ContentSection.tsx - Con indicador visual de admin
 import { useState } from 'react'
-import { Search, Tv, X, Save } from 'lucide-react'
+import { Search, Tv, X, Save, Shield } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useContent, Channel } from '../context/ContentContext'
 import NetflixCard from './NetflixCard'
@@ -12,7 +13,6 @@ interface ContentSectionProps {
   category: 'kids' | 'deportes' | 'entretenimiento' | 'historia' | 'premium' | 'cineclasico' | 'adultos'
 }
 
-// ✅ MODAL PARA EDITAR URL Y GRUPO DEL CANAL
 function EditChannelModal({ 
   channel, 
   onClose, 
@@ -122,7 +122,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
   const categoryChannels = channels.filter(c => c.category === category)
   const categoryMovies = movies.filter(m => m.category === category)
 
-  console.log(`📊 [${title}] Total en BD: ${channels.length} | Filtrados en esta categoría: ${categoryChannels.length}`)
+  console.log(`📊 [${title}] isAdmin: ${isUserAdmin} | Canales en categoría: ${categoryChannels.length}`)
 
   const items = [
     ...categoryChannels.map(c => ({
@@ -190,12 +190,20 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
           <div className="flex items-center gap-3">
             <Icon className={`w-8 h-8 ${iconColor}`} />
             <h2 className="text-3xl md:text-4xl font-bold text-white">{title}</h2>
+            {isUserAdmin && (
+              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-bold rounded-full border border-green-500/30 flex items-center gap-1">
+                <Shield className="w-3 h-3" /> ADMIN
+              </span>
+            )}
           </div>
           <button className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-[#2F2F2F] text-white border border-[#3F3F3F]">
             <Tv className="w-4 h-4" /> Guía EPG
           </button>
         </div>
         <p className="text-[#808080] text-sm">{items.length} contenidos disponibles</p>
+        {!isUserAdmin && (
+          <p className="text-[#E50914] text-xs mt-1">⚠️ No estás en modo administrador. Los botones de editar/eliminar no aparecerán.</p>
+        )}
       </div>
 
       <div className="px-4 md:px-12 mb-8">
@@ -233,11 +241,6 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
         <div className="px-4 md:px-12">
           <div className="bg-[#1F1F1F] border border-[#2F2F2F] rounded-md p-12 text-center">
             <p className="text-[#808080] text-lg mb-2">No hay contenidos en esta categoría</p>
-            {channels.length === 0 && (
-              <p className="text-[#E50914] text-sm font-bold mt-2">
-                ⚠️ La base de datos está devolviendo 0 canales en total.
-              </p>
-            )}
           </div>
         </div>
       ) : (

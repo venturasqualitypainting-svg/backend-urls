@@ -1,3 +1,4 @@
+// src/components/NetflixCard.tsx
 import { useState } from 'react'
 import { Play, Trash2, Edit } from 'lucide-react'
 
@@ -51,7 +52,7 @@ export default function NetflixCard({
           </div>
         )}
 
-        {/* ✅ BOTONES DE ADMIN: Editar y Eliminar */}
+        {/* ✅ ADMIN BUTTONS: Edit and Delete */}
         {isAdmin && (
           <div className="absolute top-2 right-2 flex gap-1 z-20">
             {onEdit && (
@@ -75,7 +76,7 @@ export default function NetflixCard({
           </div>
         )}
 
-        {/* Overlay con botón Play al hacer hover */}
+        {/* Play Overlay */}
         <div className={`absolute inset-0 bg-black/50 transition-opacity duration-300 flex items-center justify-center ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
           <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-2 border-white">
             <Play className="w-7 h-7 text-white fill-white ml-1" />
