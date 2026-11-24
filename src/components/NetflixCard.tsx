@@ -1,6 +1,5 @@
-// src/components/NetflixCard.tsx
 import { useState } from 'react'
-import { Play, Trash2, Edit } from 'lucide-react'
+import { Play, Trash2, Edit, Check } from 'lucide-react'
 
 interface NetflixCardProps {
   id: string
@@ -14,12 +13,15 @@ interface NetflixCardProps {
   isAdmin?: boolean
   onDelete?: () => void
   onEdit?: () => void
+  isSelected?: boolean
+  onToggleSelection?: (e: React.MouseEvent) => void
   index?: number
 }
 
 export default function NetflixCard({ 
   title, logo, poster, group, isLive = false, 
-  onPlay, isAdmin = false, onDelete, onEdit 
+  onPlay, isAdmin = false, onDelete, onEdit,
+  isSelected = false, onToggleSelection
 }: NetflixCardProps) {
   const [isHovered, setIsHovered] = useState(false)
 
@@ -27,7 +29,9 @@ export default function NetflixCard({
 
   return (
     <div 
-      className="relative flex-none w-full cursor-pointer group transition-transform duration-300 hover:scale-105"
+      className={`relative flex-none w-full cursor-pointer group transition-transform duration-300 hover:scale-105 ${
+        isSelected ? 'ring-4 ring-[#E50914] ring-offset-2 ring-offset-[#141414]' : ''
+      }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onPlay}
@@ -52,7 +56,33 @@ export default function NetflixCard({
           </div>
         )}
 
-        {/* ✅ ADMIN BUTTONS: Edit and Delete */}
+        {/* ✅ INDICADOR DE SELECCIÓN */}
+        {isSelected && (
+          <div className="absolute top-2 left-2 bg-[#E50914] rounded-full p-1 z-30">
+            <Check className="w-4 h-4 text-white" />
+          </div>
+        )}
+
+        {/* ✅ BOTÓN DE SELECCIÓN (visible al hacer hover cuando eres admin) */}
+        {isAdmin && onToggleSelection && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSelection(e) }}
+            className={`absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-all z-30 ${
+              isSelected 
+                ? 'bg-[#E50914] opacity-100' 
+                : 'bg-black/70 opacity-0 group-hover:opacity-100 hover:bg-[#E50914]'
+            }`}
+            title={isSelected ? 'Deseleccionar' : 'Seleccionar'}
+          >
+            {isSelected ? (
+              <Check className="w-4 h-4 text-white" />
+            ) : (
+              <div className="w-4 h-4 border-2 border-white rounded-full" />
+            )}
+          </button>
+        )}
+
+        {/* ✅ BOTONES DE ADMIN: Editar y Eliminar */}
         {isAdmin && (
           <div className="absolute top-2 right-2 flex gap-1 z-20">
             {onEdit && (

@@ -1,6 +1,5 @@
-// src/components/ContentSection.tsx - Con indicador visual de admin
 import { useState } from 'react'
-import { Search, Tv, X, Save, Shield } from 'lucide-react'
+import { Search, Tv, X, Save, Shield, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useContent, Channel } from '../context/ContentContext'
 import NetflixCard from './NetflixCard'
@@ -118,6 +117,7 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
   const [searchTerm, setSearchTerm] = useState('')
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [successMsg, setSuccessMsg] = useState('')
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
 
   const categoryChannels = channels.filter(c => c.category === category)
   const categoryMovies = movies.filter(m => m.category === category)
@@ -165,6 +165,35 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
     }
   }
 
+  // ✅ SELECCIÓN MÚLTIPLE
+  const toggleItemSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const newSelected = new Set(selectedItems)
+    if (newSelected.has(id)) newSelected.delete(id)
+    else newSelected.add(id)
+    setSelectedItems(newSelected)
+  }
+
+  const selectAll = () => {
+    setSelectedItems(new Set(filteredItems.map(i => i.id)))
+  }
+
+  const deselectAll = () => {
+    setSelectedItems(new Set())
+  }
+
+  const deleteSelected = async () => {
+    if (selectedItems.size === 0) return
+    if (confirm(`¿Eliminar ${selectedItems.size} canal(es) seleccionado(s)?`)) {
+      for (const id of selectedItems) {
+        await removeChannel(id)
+      }
+      setSuccessMsg(`✅ ${selectedItems.size} canal(es) eliminado(s)`)
+      setSelectedItems(new Set())
+      setTimeout(() => setSuccessMsg(''), 3000)
+    }
+  }
+
   if (loading) {
     return (
       <div className="pt-8 px-4 md:px-12 flex items-center gap-3">
@@ -201,13 +230,10 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
           </button>
         </div>
         <p className="text-[#808080] text-sm">{items.length} contenidos disponibles</p>
-        {!isUserAdmin && (
-          <p className="text-[#E50914] text-xs mt-1">⚠️ No estás en modo administrador. Los botones de editar/eliminar no aparecerán.</p>
-        )}
       </div>
 
       <div className="px-4 md:px-12 mb-8">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#808080]" />
             <input
@@ -218,13 +244,41 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
               className="w-full pl-10 pr-4 py-2.5 bg-[#2F2F2F] border border-[#3F3F3F] rounded-md text-white text-sm"
             />
           </div>
+          
           {isUserAdmin && (
-            <button 
-              onClick={refreshData} 
-              className="px-4 py-2.5 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md text-sm font-bold transition-colors flex items-center gap-2"
-            >
-              🔄 Recargar Datos
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              {/* ✅ BOTONES DE SELECCIÓN MÚLTIPLE */}
+              <button 
+                onClick={selectAll} 
+                className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
+              >
+                <CheckSquare className="w-4 h-4" /> Seleccionar todos
+              </button>
+              
+              {selectedItems.size > 0 && (
+                <>
+                  <button 
+                    onClick={deselectAll} 
+                    className="px-4 py-2.5 bg-[#2F2F2F] hover:bg-[#3F3F3F] border border-[#3F3F3F] rounded-md text-white text-sm transition-colors flex items-center gap-2"
+                  >
+                    <Square className="w-4 h-4" /> Deseleccionar
+                  </button>
+                  <button 
+                    onClick={deleteSelected} 
+                    className="px-4 py-2.5 bg-[#E50914] hover:bg-[#F40612] text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Eliminar ({selectedItems.size})
+                  </button>
+                </>
+              )}
+
+              <button 
+                onClick={refreshData} 
+                className="px-4 py-2.5 bg-[#4A90E2] hover:bg-[#357ABD] text-white rounded-md text-sm font-bold transition-colors flex items-center gap-2"
+              >
+                🔄 Recargar
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -260,6 +314,8 @@ export default function ContentSection({ onPlay, title, icon: Icon, iconColor, c
                 isAdmin={isUserAdmin}
                 onDelete={isUserAdmin && item.type === 'channel' ? () => handleDeleteChannel(item.id) : undefined}
                 onEdit={isUserAdmin && item.type === 'channel' && item.raw ? () => setEditingChannel(item.raw) : undefined}
+                isSelected={selectedItems.has(item.id)}
+                onToggleSelection={isUserAdmin ? (e) => toggleItemSelection(item.id, e) : undefined}
                 index={index}
               />
             ))}
